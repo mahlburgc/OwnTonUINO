@@ -15,6 +15,14 @@
  *  Information and contribution at https://tonuino.de.
  *    
  *  Changed by Christian Mahlburg
+ 
+ 
+ TODO: 
+   - sleep timer
+   - status led for sleep timer
+   - rfid card
+   - admin menu
+   - startup sound
  *
  ********************************************************************************
  * MIT License
@@ -56,7 +64,14 @@
 /********************************************************************************
  * defines
  ********************************************************************************/
-#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
+//#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
+
+#define VERSION             3 /* if number is changed, device settings in eeprom will be reseted */
+/* these presets will be used on device settings reset in eeprom */
+#define VOLUME_MIN_PRESET   0
+#define VOLUME_MAX_PRESET   15
+#define VOLUME_INIT_PRESET  6
+#define SLEEP_TIMER_PRESET  0
 
 /* Buttons */
 #define BUTTON_PAUSE_PIN    A0
@@ -79,14 +94,31 @@
 #ifdef  DEBUG
 #define DEBUG_PRINT(x)      Serial.print(x)
 #define DEBUG_PRINT_LN(x)   Serial.println(x)
+#define DEBUG_TRACE         { Serial.print("==> "); Serial.println(__PRETTY_FUNCTION__); }
 #else
 #define DEBUG_PRINT(x)      ((void)0U)
 #define DEBUG_PRINT_LN(x)   ((void)0U)
+#define DEBUG_TRACE         ((void)0U)
 #endif
 
 #define UNUSED(x)           (void)x;
 
 #define SERIAL_BAUD         115200
+
+#define MAX_TRACKS_IN_FOLDER            255
+#define MAX_FOLDER                      100
+
+#define STARTUP_SOUND       500 /* advertisement track number */
+
+#define DF_PLAYER_COM_DELAY 100 /* ms, delay to make shure that communication was finished with df player before continuing in program */
+
+/* For every folder the actual track can be stored in eeprom (audio book mode).
+ * Therefore the track number (0 ... 255) is stored at folder number - 1.
+ * Example: If folder number 5 is in audio book mode, the last played track is stored at eeprom address 5.
+ * This results in eeprom adress 0 is always empty, because folder numeration starts with 1 to 99.
+ */
+#define EEPROM_DEVICE_SETTINGS_ADDR     MAX_FOLDER
+
 
 /********************************************************************************
  * static memeber
@@ -101,16 +133,17 @@ typedef enum
 
 typedef struct 
 {
-  uint8_t      number;
-  ListenMode_t mode;
+    uint8_t      number;
+    ListenMode_t mode;
 } FolderSettings_t;
 
 typedef struct 
 {
-  uint8_t volumeMin;
-  uint8_t volumeMax;
-  uint8_t volumeInit;
-  long    sleepTimer;
+    uint8_t version;
+    uint8_t volumeMin;
+    uint8_t volumeMax;
+    uint8_t volumeInit;
+    long    sleepTimer;
 } DeviceSettings_t;
  
 /* DFPlayer Mini */
@@ -136,23 +169,40 @@ static void previousTrack(void);
 static void volumeUp(void);
 static void volumeDown(void);
 static void readButtons(void);
+static bool isPlaying(void);
+static void shuffleQueue(void);
+static void playFolder(void);
+static void writeSettingsToFlash(void);
+static void resetSettings(void);
+static void loadSettingsFromFlash(void);
+static void playStartupSound(void);
+/* wrapper functions for DFMiniMp3 Player with delay */
+static void mp3Start(void);
+static void mp3Pause(void);
+static void mp3SetVolume(uint8_t volume);
+static void mp3Begin(void);
+static void mp3Loop(void);
+static void mp3PlayFolderTrack(uint8_t folder, uint16_t track);
+static uint16_t mp3GetFolderTrackCount(uint8_t folderNr);
+static void playAdvertisement(uint16_t advertTrack);
+static void waitForTrackFinish (void);
+
 
 class Mp3Notify 
 {
 public:
     static void OnError(uint16_t errorCode)
     {
-      DEBUG_PRINT_LN();
-      DEBUG_PRINT("Com Error ");       /* see DfMp3_Error for code meaning */
-      DEBUG_PRINT_LN(errorCode);
+      Serial.print("com error ");       /* see DfMp3_Error for code meaning */
+      Serial.println(errorCode);
     }
     
     static void PrintlnSourceAction(DfMp3_PlaySources source, const char* action) 
     {
-      if (source & DfMp3_PlaySources_Sd) DEBUG_PRINT("SD Karte ");
+      if (source & DfMp3_PlaySources_Sd) DEBUG_PRINT("sd card ");
       if (source & DfMp3_PlaySources_Usb) DEBUG_PRINT("USB ");
-      if (source & DfMp3_PlaySources_Flash) DEBUG_PRINT("Flash ");
-      DEBUG_PRINT_LN(action);
+      if (source & DfMp3_PlaySources_Flash) DEBUG_PRINT("flash ");
+      Serial.println (action);
     }
     
     static void OnPlayFinished(DfMp3_PlaySources source, uint16_t track)
@@ -169,12 +219,12 @@ public:
     
     static void OnPlaySourceInserted(DfMp3_PlaySources source)
     {
-      PrintlnSourceAction(source, "bereit");
+      PrintlnSourceAction(source, "ready");
     }
     
     static void OnPlaySourceRemoved(DfMp3_PlaySources source)
     {
-      PrintlnSourceAction(source, "entfernt");
+      PrintlnSourceAction(source, "removed");
     }
 };
 
@@ -182,32 +232,38 @@ static DFMiniMp3<SoftwareSerial, Mp3Notify> mp3(mySoftwareSerial);
 
 static void nextTrack(void)
 {
-    DEBUG_PRINT_LN(F("== nextTrack()"));
+    DEBUG_TRACE;
       
     if (folder.mode == MODE_ALBUM)
     {
         if (currentTrack < numTracksInFolder)
         {
             currentTrack = currentTrack + 1;
-            mp3.playFolderTrack(folder.number, currentTrack);
-            DEBUG_PRINT(F("Albummodus ist aktiv -> nächster Track: "));
-            DEBUG_PRINT(currentTrack);
-        } 
+            mp3PlayFolderTrack(folder.number, currentTrack);
+            DEBUG_PRINT(F("album mode -> next track: "));
+            DEBUG_PRINT_LN(currentTrack);
+        }
+        else
+        {
+            DEBUG_PRINT(F("album mode -> end"));
+        }
     }
     
     if (folder.mode == MODE_SHUFFLE)
     {
         if (currentTrack < numTracksInFolder)
         {
-            DEBUG_PRINT(F("Shuffle -> weiter in der Queue "));
             currentTrack++;
+            DEBUG_PRINT(F("shuffle mode -> next track: "));
+            DEBUG_PRINT_LN(queue[currentTrack-1]);
         }
         else
         {
-            DEBUG_PRINT_LN(F("Ende der Shuffle Queue -> beginne von vorne"));
             currentTrack = 1;
+            DEBUG_PRINT(F("shuffle mode -> end of queue, start from beginning track: "));
+            DEBUG_PRINT_LN(queue[currentTrack-1]);
         }
-        mp3.playFolderTrack(folder.number, queue[currentTrack - 1]);
+        mp3PlayFolderTrack(folder.number, queue[currentTrack - 1]);
     }
 
     if (folder.mode == MODE_AUDIO_BOOK)
@@ -215,84 +271,89 @@ static void nextTrack(void)
         if (currentTrack < numTracksInFolder)
         {
             currentTrack = currentTrack + 1;
-            mp3.playFolderTrack(folder.number, currentTrack);
-            /* EEPROM.update(folder.number, currentTrack); TODO */
-            
-            DEBUG_PRINT(F("Hörbuch Modus ist aktiv -> nächster Track und Fortschritt speichern"));
+            mp3PlayFolderTrack(folder.number, currentTrack);
+            DEBUG_PRINT(F("audio book mode -> store progress, next track: "));
             DEBUG_PRINT_LN(currentTrack);
         } 
         else
         {
-            /* TODO EEPROM.update(folder.number, 1); */
+            currentTrack = 1;
+            DEBUG_PRINT(F("audio book mode -> end, store progress, reset to first track"));
         }
+        EEPROM.update(folder.number, currentTrack);            
     }
-    delay(500);
 }
 
 static void previousTrack(void)
 {
-    DEBUG_PRINT_LN(F("== previousTrack()"));
+    DEBUG_TRACE;
 
     if (folder.mode == MODE_ALBUM)
     {
-        DEBUG_PRINT_LN(F("Albummodus ist aktiv -> vorheriger Track"));
         if (currentTrack > 1)
         {
           currentTrack = currentTrack - 1;
+          
         }
-        mp3.playFolderTrack(folder.number, currentTrack);
+        mp3PlayFolderTrack(folder.number, currentTrack);
+        DEBUG_PRINT(F("album mode -> prev track: "));
+        DEBUG_PRINT_LN(currentTrack);
     }
     
     if (folder.mode == MODE_SHUFFLE)
     {
         if (currentTrack > 1)
         {
-          DEBUG_PRINT(F("Shuffle Modus ist aktiv -> zurück in der Qeueue "));
-          currentTrack--;
+            currentTrack--;
+            DEBUG_PRINT(F("shuffle mode -> prev track: "));
+            DEBUG_PRINT_LN(queue[currentTrack-1]);
         }
         else
         {
-            DEBUG_PRINT(F("Anfang der Queue -> springe ans Ende "));
             currentTrack = numTracksInFolder;
+            DEBUG_PRINT(F("shuffle mode -> beginning of queue, jump to last track in queue: "));
+            DEBUG_PRINT_LN(queue[currentTrack-1]);
         }
         DEBUG_PRINT_LN(queue[currentTrack - 1]);
-        mp3.playFolderTrack(folder.number, queue[currentTrack - 1]);
+        mp3PlayFolderTrack(folder.number, queue[currentTrack - 1]);
     }
     
     if (folder.mode == MODE_AUDIO_BOOK)
     {
-        DEBUG_PRINT_LN(F("Hörbuch Modus ist aktiv -> vorheriger Track und Fortschritt speichern"));
         if (currentTrack > 1)
         {
           currentTrack = currentTrack - 1;
         }
-        mp3.playFolderTrack(folder.number, currentTrack);
-        /*EEPROM.update(folder.number, currentTrack);  TODO */
+        mp3PlayFolderTrack(folder.number, currentTrack);
+        EEPROM.update(folder.number, currentTrack);
+        DEBUG_PRINT(F("audio book mode -> store progress, prev track: "));
+        DEBUG_PRINT_LN(currentTrack);
     }
-    delay(500);
 }
 
 static void volumeUp(void)
 {
-    DEBUG_PRINT_LN(F("== volumeUp()"));
+    DEBUG_TRACE;
     
     if (volume < deviceSettings.volumeMax) 
     {
-        mp3.increaseVolume();
         volume++;
+        mp3SetVolume(volume);
     }
+    DEBUG_PRINT_LN(F("new volume: "));
     DEBUG_PRINT_LN(volume);
 }
 
 static void volumeDown(void)
 {
-    DEBUG_PRINT_LN(F("== volumeDown()"));
+    DEBUG_TRACE;
     
     if (volume > deviceSettings.volumeMin)
     {
-        mp3.decreaseVolume();
         volume--;
+        mp3SetVolume(volume);
     }
+    DEBUG_PRINT_LN(F("new volume: "));
     DEBUG_PRINT_LN(volume);
 }
 
@@ -310,29 +371,39 @@ static void buttonHandler(void)
     readButtons();
     
     if (buttonPause.wasReleased())
-    {
+    {   
+        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (isPlaying())
         {
-            mp3.pause();
+            mp3Pause();
         }
         else
         {
-            mp3.start();
+            mp3Start();
         }
     } 
     
     if (buttonUp.wasReleased()) 
     {
-        volumeUp();
+        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
+        if (isPlaying())
+        {
+            volumeUp();
+        }
     }
 
     if (buttonDown.wasReleased())
     {
-        volumeDown();
+        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
+        if (isPlaying())
+        {
+            volumeDown();
+        }
     }
 
     if (buttonNext.wasReleased())
     {
+        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (isPlaying())
         {
             nextTrack();
@@ -341,6 +412,7 @@ static void buttonHandler(void)
     
     if (buttonPrev.wasReleased())
     {
+        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (isPlaying())
         {
             previousTrack();
@@ -348,53 +420,272 @@ static void buttonHandler(void)
     }
 }
 
-bool isPlaying()
+static bool isPlaying(void)
 {
   return !digitalRead(DF_PLAYER_BUSY_PIN);
 }
 
+static void shuffleQueue(void)
+{
+    DEBUG_TRACE;
+    
+    /* create queue for shuffle */
+    for (uint8_t i = 0; i < numTracksInFolder; i++)
+    {
+        queue[i] = i;
+    }
+  
+    /* fill queue with zeros */
+    for (uint8_t i = numTracksInFolder; i < MAX_TRACKS_IN_FOLDER; i++)
+    {
+        queue[i] = i;
+    }
+  
+    /* mix queue */
+    for (uint8_t i = 0; i < numTracksInFolder; i++)
+    {
+        uint8_t j = random(0, numTracksInFolder - 1);
+        uint8_t temp = queue[i];
+        queue[i] = queue[j];
+        queue[j] = temp;
+    }
+    
+    /* DEBUG */
+    DEBUG_PRINT_LN(F("Queue :"));
+    for (uint8_t i = 0; i < numTracksInFolder; i++)
+    {
+        DEBUG_PRINT_LN(queue[i]);
+    }
+}
+
+static void playFolder(void)
+{
+    DEBUG_TRACE;
+   
+    numTracksInFolder = mp3GetFolderTrackCount(folder.number);
+    DEBUG_PRINT(numTracksInFolder);
+    DEBUG_PRINT(F(" files in directory "));
+    DEBUG_PRINT_LN(folder.number);
+
+    if (folder.mode == MODE_ALBUM)
+    {
+        DEBUG_PRINT_LN(F("album mode -> play whole folder"));
+        currentTrack = 1;
+        mp3PlayFolderTrack(folder.number, currentTrack);
+    }
+    else if (folder.mode == MODE_SHUFFLE)
+    {
+        DEBUG_PRINT_LN(F("shuffle mode -> play folder in random order"));
+        shuffleQueue();
+        currentTrack = 1;
+        mp3PlayFolderTrack(folder.number, queue[currentTrack - 1]);
+    }
+    else if (folder.mode == MODE_AUDIO_BOOK)
+    {
+        DEBUG_PRINT_LN(F("audio book mode -> play whole folder and remember progress"));
+        currentTrack = EEPROM.read(folder.number);
+   
+        if ((currentTrack == 0) || (currentTrack > numTracksInFolder))
+        {
+            currentTrack = 1;
+        }
+        mp3PlayFolderTrack(folder.number, currentTrack);
+    }
+}
+
+static void writeSettingsToFlash(void) 
+{
+    DEBUG_TRACE;
+    
+    EEPROM.put(EEPROM_DEVICE_SETTINGS_ADDR, deviceSettings);
+}
+
+static void resetSettings(void)
+{
+    DEBUG_TRACE;
+    
+    deviceSettings.version      = VERSION;
+    deviceSettings.volumeMin    = VOLUME_MIN_PRESET;
+    deviceSettings.volumeMax    = VOLUME_MAX_PRESET;
+    deviceSettings.volumeInit   = VOLUME_INIT_PRESET;
+    deviceSettings.sleepTimer   = SLEEP_TIMER_PRESET;
+
+    writeSettingsToFlash();
+}
+
+static void loadSettingsFromFlash(void)
+{
+    DEBUG_TRACE;
+    
+    EEPROM.get(EEPROM_DEVICE_SETTINGS_ADDR, deviceSettings);
+    
+    if (deviceSettings.version != VERSION)
+    {
+        resetSettings();
+    }
+    
+    DEBUG_PRINT(F("version: "));
+    DEBUG_PRINT_LN(deviceSettings.version);
+
+    DEBUG_PRINT(F("volume max: "));
+    DEBUG_PRINT_LN(deviceSettings.volumeMax);
+
+    DEBUG_PRINT(F("volume min: "));
+    DEBUG_PRINT_LN(deviceSettings.volumeMin);
+
+    DEBUG_PRINT(F("volume initial: "));
+    DEBUG_PRINT_LN(deviceSettings.volumeInit);
+
+    DEBUG_PRINT(F("sleep timer: "));
+    DEBUG_PRINT_LN(deviceSettings.sleepTimer);
+}
+
+static void playStartupSound(void)
+{
+    DEBUG_TRACE;
+    mp3.playMp3FolderTrack(STARTUP_SOUND);
+    waitForTrackFinish();
+}
+
+static void mp3Start(void)
+{
+    mp3.start();
+    delay(DF_PLAYER_COM_DELAY);
+}
+
+static void mp3Pause(void)
+{
+    mp3.pause();
+    delay(DF_PLAYER_COM_DELAY);
+}
+
+static void mp3SetVolume(uint8_t volume)
+{
+    mp3.setVolume(volume);
+    delay(DF_PLAYER_COM_DELAY);
+}
+
+static void mp3PlayFolderTrack(uint8_t folder, uint16_t track)
+{
+    mp3.playFolderTrack(folder, track);
+    delay(DF_PLAYER_COM_DELAY);
+}
+
+static void mp3Begin(void)
+{
+    mp3.begin();
+    delay(DF_PLAYER_COM_DELAY);   
+}
+
+static uint16_t mp3GetFolderTrackCount(uint8_t folderNr)
+{
+    return mp3.getFolderTrackCount(folderNr);
+}
+
+static void playAdvertisement(uint16_t advertTrack)
+{
+    DEBUG_TRACE;
+    
+    if (isPlaying())
+    {
+        mp3.playAdvertisement(advertTrack);
+        waitForTrackFinish();
+        delay(50); /* delay for dfplayer to start the interrupted track before continuing in program */
+    }
+    else
+    {
+        /* TBD if it's realy necessary to play advert tracks if music is not playing (therefore mp3 folder is usable)
+         * possible solution is to add same mp3 files into advert dir and mp3 dir on sd card an call mp3.playMp3FolderTrack(advertTrack); here
+         */
+        mp3Start();
+        mp3.playAdvertisement(advertTrack);
+        waitForTrackFinish();
+        mp3Pause();
+    }
+}
+
+static void mp3Loop(void)
+{
+    mp3.loop();
+}
+
+static void waitForTrackFinish (void)
+{
+    DEBUG_TRACE;
+    
+    unsigned long timeStart = 0;
+    unsigned long TRACK_FINISHED_TIMEOUT = 500; /* ms, timeout to start the track by dfplayer and raise busy pin */
+    
+    /* If starting a new song while another song is playing and directily calling this function, 
+     * it's possible that the old song is still playing when calling this function. To avoid detecting 
+     * "track finished" of the old song, a initial delay is added.
+     */
+    delay(100); 
+    timeStart = millis();
+    
+    /* Wait for track to finish. Therefore it must be checked that new track already started.
+     * Otherwise it's possible that "track finished" is detected in the timeslice, in which the dfplayer needs to start the new track.
+     */
+    while ((!isPlaying()) && (millis() < (timeStart + TRACK_FINISHED_TIMEOUT)))
+    {
+        /* wait for track starting */
+    }
+    DEBUG_PRINT_LN(F("track started"));
+    
+    while (isPlaying())
+    {
+        /* wait for track to finish */
+    }
+    DEBUG_PRINT_LN(F("track finished"));
+}
+    
+    
 void setup(void)
 {
-  Serial.begin(SERIAL_BAUD);
+    uint32_t ADC_LSB = 0;
+    uint32_t ADCSeed = 0;
 
-  DEBUG_PRINT_LN(F("initializing..."));
+    /* create value for randomSeed() through multiple sampling of the LSB on open analog input */
+    for (uint8_t i = 0; i < 128; i++)
+    {
+        ADC_LSB = analogRead(OPEN_ANALOG_PIN) & 0x1;
+        ADCSeed ^= ADC_LSB << (i % 32);
+    }
+    randomSeed(ADCSeed); /* initialize random generator */
+   
+    Serial.begin(SERIAL_BAUD);
+    
+    loadSettingsFromFlash();
 
-  folder =
-  {
-    .number = 1,
-    .mode   = MODE_ALBUM,
-  };
+    /* DEBUG this informations must get by RFID card */
+    folder =
+    {
+        .number = 4,
+        .mode   = MODE_SHUFFLE,
+    };
 
-  deviceSettings =
-  {
-    .volumeMin = 0,
-    .volumeMax = 15,
-    .volumeInit = 6,
-    .sleepTimer = 0,
-  };
-  
-  volume = deviceSettings.volumeInit;
-  currentTrack = 1;
-  
-  mp3.begin();
-  delay(2000);
-  mp3.setVolume(volume);
-  numTracksInFolder = mp3.getFolderTrackCount(folder.number);
+    volume = deviceSettings.volumeInit;
+    currentTrack = 1;
 
-  pinMode(BUTTON_PAUSE_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_NEXT_PIN, INPUT_PULLUP);
-  pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
-  pinMode(DF_PLAYER_BUSY_PIN, INPUT);
+    mp3Begin();
+    mp3SetVolume(volume);
+    
+    numTracksInFolder = mp3GetFolderTrackCount(folder.number);
 
-  DEBUG_PRINT_LN(F("starting..."));
-  
-  mp3.playFolderTrack(folder.number, currentTrack); // random of all folders on sd
+    pinMode(BUTTON_PAUSE_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_NEXT_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
+    pinMode(DF_PLAYER_BUSY_PIN, INPUT);
+    
+    playStartupSound();
+    delay(200);
+    playFolder();
 }
 
 void loop(void)
 {
-    mp3.loop();
+    mp3Loop();
     buttonHandler();
 }
