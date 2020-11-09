@@ -33,6 +33,11 @@ static uint16_t mp3GetFolderTrackCount(uint8_t folderNr)
     return mp3.getFolderTrackCount(folderNr);
 }
 
+static uint16_t mp3GetTotalFolderCount(void)
+{
+    return (mp3.getTotalFolderCount() - 3); /* remove folder offset (advert, mp3 and ??) */
+}
+
 static void mp3Loop(void)
 {
     mp3.loop();
@@ -40,4 +45,10 @@ static void mp3Loop(void)
 static bool mp3IsPlaying(void)
 {
   return !digitalRead(DF_PLAYER_BUSY_PIN);
+}
+
+static void mp3PlayMp3FolderTrack(uint16_t track)
+{
+    mp3.playMp3FolderTrack(track);
+    waitForTrackFinish();
 }

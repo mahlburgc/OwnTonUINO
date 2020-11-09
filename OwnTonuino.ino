@@ -20,8 +20,17 @@
  TODO: 
    - sleep timer
    - status led for sleep timer
-   - rfid card
    - admin menu
+   - bug fix for shuffle track 0
+   - bug fix 
+   ==> void nextTrack()
+audio book mode -> end, store progress, reset to first track==> void nextTrack()
+audio book mode -> end, store progress, reset to first track==> void nextTrack()
+audio book mode -> end, store progress, reset to first track==> void nextTrack()
+audio book mode -> end, store progress, reset to first track==> void nextTrack()
+audio book mode -> end, store progress, reset to first track==> void nextTrack()
+audio book mode -> end, store progress, reset to first trackcom error 130
+after configure new card
  *
  ********************************************************************************
  * MIT License
@@ -79,8 +88,8 @@
 #define BUTTON_NEXT_PIN     A4
 #define BUTTON_PREV_PIN     A3
 /* MFRC522 */
-#define RFID_RST_PIN        9
-#define RFID_SS_PIN         10
+#define MFRC522_RST_PIN     9
+#define MFRC522_SS_PIN      10
 /* DF PLAYER */
 #define DF_PLAYER_RX_PIN    2
 #define DF_PLAYER_TX_PIN    3
@@ -107,7 +116,22 @@
 #define MAX_TRACKS_IN_FOLDER            255
 #define MAX_FOLDER                      100
 
-#define STARTUP_SOUND       500 /* advertisement track number */
+/*mp3 track number */
+#define MP3_STARTUP_SOUND          500
+#define MP3_NEW_NFC_TAG            300
+#define MP3_SELECT_FOLDER          301
+#define MP3_SELECT_LISTEN_MODE     310
+#define MP3_LISTEN_MODE_ALBUM      312
+#define MP3_LISTEN_MODE_SHUFFLE    313
+#define MP3_LISTEN_MODE_AUDIO_BOOK 315
+#define MP3_LISTEN_MODE_ADMIN      316
+#define MP3_OWEH_DAS_HAT_LEIDER    401
+#define MP3_OK_ICH_HABE_DIE_KAR    400
+#define MP3_RESET_OK               999
+#define MP3_ADMIN_MENU             900
+#define MP3_ADMIN_MENU_RESET_TAG   901
+#define MP3_ADMIN_MENU_INSERT_TAG  800
+
 #define DF_PLAYER_COM_DELAY 100 /* ms, delay to make shure that communication was finished with df player before continuing in program */
 
 /* For every folder the actual track can be stored in eeprom (audio book mode).
@@ -124,15 +148,24 @@
 
 typedef enum 
 {
+    MODE_UNSET,       /* folder not configured */
     MODE_ALBUM,       /* play whole folder in normal sequence */
     MODE_SHUFFLE,     /* play whole folder in random sequence */
     MODE_AUDIO_BOOK,  /* play whole folder in normal sequence from last playes track */
-} ListenMode_t;
+    MODE_ADMIN,       /* admin mode */
+    MODE_NR_OF_MODES, /* DO NOT USE AS MODE */
+} FolderMode_t;
+
+typedef enum
+{
+    ADMIN_MENU_RESET_NFC_TAG,
+    ADMIN_MENU_NR_OF_OPTIONS, /* DO NOT USE AS OPTION */
+} AdminMenuOptions_t;
 
 typedef struct 
 {
     uint8_t      number;
-    ListenMode_t mode;
+    FolderMode_t mode;
 } FolderSettings_t;
 
 typedef struct 
@@ -143,6 +176,13 @@ typedef struct
     uint8_t volumeInit;
     long    sleepTimer;
 } DeviceSettings_t;
+
+typedef struct 
+{
+  uint32_t cookie;
+  uint8_t version;
+  FolderSettings_t folderSettings;
+} NfcTagObject_t;
  
 /* DFPlayer Mini */
 static SoftwareSerial mySoftwareSerial(DF_PLAYER_RX_PIN, DF_PLAYER_TX_PIN); // RX, TX
@@ -161,6 +201,17 @@ Button buttonDown(BUTTON_DOWN_PIN);
 Button buttonNext(BUTTON_NEXT_PIN);
 Button buttonPrev(BUTTON_PREV_PIN);
 
+/* MFRC522 */
+MFRC522 mfrc522(MFRC522_SS_PIN, MFRC522_RST_PIN); 
+MFRC522::MIFARE_Key key;
+bool successRead;
+byte sector = 1;
+byte blockAddr = 4;
+byte trailerBlock = 7;
+MFRC522::StatusCode status;
+static const uint32_t GOLDEN_COOKIE = 0xDEADBEEF; /* this cookie is used to identify known cards */
+bool nfcConfigInProgess = false;
+
 /* foreward decalarations */
 static void nextTrack(void);
 static void previousTrack(void);
@@ -175,6 +226,7 @@ static void resetSettings(void);
 static void loadSettingsFromFlash(void);
 static void playStartupSound(void);
 static void printDeviceSettings(void);
+static void adminMenu(void);
 /* wrapper functions for DFMiniMp3 Player with delay */
 static void mp3Start(void);
 static void mp3Pause(void);
@@ -183,8 +235,18 @@ static void mp3Begin(void);
 static void mp3Loop(void);
 static void mp3PlayFolderTrack(uint8_t folder, uint16_t track);
 static uint16_t mp3GetFolderTrackCount(uint8_t folderNr);
+static void mp3PlayMp3FolderTrack(uint16_t track);
+static uint16_t mp3GetTotalFolderCount(void);
+
 static void playAdvertisement(uint16_t advertTrack);
-static void waitForTrackFinish (void);
+static void waitForTrackFinish(void);
+/* rfid */
+static void nfcHandler(void);
+static bool readNfcTag(NfcTagObject_t* nfcTag);
+static bool writeNfcTag(NfcTagObject_t nfcTag);
+static NfcTagObject_t setupNfcTag(void);
+static void resetNfcTag(void);
+
 
 /********************************************************************************
  * classes
@@ -238,6 +300,12 @@ static DFMiniMp3<SoftwareSerial, Mp3Notify> mp3(mySoftwareSerial);
 static void nextTrack(void)
 {
     DEBUG_TRACE;
+    
+    if (nfcConfigInProgess == true)
+    {
+        DEBUG_PRINT_LN(F("Return without action"));
+        return;
+    }
       
     if (folder.mode == MODE_ALBUM)
     {
@@ -247,6 +315,8 @@ static void nextTrack(void)
             mp3PlayFolderTrack(folder.number, currentTrack);
             DEBUG_PRINT(F("album mode -> next track: "));
             DEBUG_PRINT_LN(currentTrack);
+            DEBUG_PRINT(F("folder: "));
+            DEBUG_PRINT_LN(folder.number);
         }
         else
         {
@@ -496,8 +566,7 @@ static void playFolder(void)
 static void playStartupSound(void)
 {
     DEBUG_TRACE;
-    mp3.playMp3FolderTrack(STARTUP_SOUND);
-    waitForTrackFinish();
+    mp3PlayMp3FolderTrack(MP3_STARTUP_SOUND);
 }
 
 static void playAdvertisement(uint16_t advertTrack)
@@ -552,23 +621,56 @@ static void waitForTrackFinish(void)
     DEBUG_PRINT_LN(F("track finished"));
 }
 
-static void printDeviceSettings(void)
+static void adminMenu(void)
 {
-    DEBUG_PRINT(F("version: "));
-    DEBUG_PRINT_LN(deviceSettings.version);
-
-    DEBUG_PRINT(F("volume max: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeMax);
-
-    DEBUG_PRINT(F("volume min: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeMin);
-
-    DEBUG_PRINT(F("volume initial: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeInit);
-
-    DEBUG_PRINT(F("sleep timer: "));
-    DEBUG_PRINT_LN(deviceSettings.sleepTimer);
+    DEBUG_TRACE;
+ 
+    //AdminMenuOptions_t menuOption = ADMIN_MENU_RESET_NFC_TAG;
+    //
+    //mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
+    //
+    //readButtons();
+    //while(!buttonPause.pressedFor(BUTTON_LONG_PRESS))
+    //{
+    //    readButtons();
+    //    if (buttonUp.wasPressed() || buttonDown.wasPressed() || buttonPause.wasReleased())
+    //    {
+    //        if (buttonUp.wasPressed() && (menuOption < (ADMIN_MENU_NR_OF_OPTIONS - 1)))
+    //        {
+    //            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption + 1);
+    //        }
+    //       else if (buttonDown.wasPressed() && (menuOption > 1))
+    //        {
+    //            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption - 1);
+    //        }
+    //        
+    //        switch(menuOption)
+    //        {
+    //        case ADMIN_MENU_RESET_NFC_TAG:
+    //            mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
+    //            if (buttonPause.wasReleased())
+    //            {
+    //                resetNfcTag();
+    //            }
+    //            break;
+    //            
+    //        default:
+    //            /* nothing to do */
+    //            break;
+    //        }
+    //    }
+    //}
+    //DEBUG_PRINT_LN(F("BUTTON LONG PRESS"));
+    mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
+    readButtons();
+    
+    while (!buttonPause.wasReleased())
+    {
+        readButtons();
+    }
+    resetNfcTag();
 }
+
 
 /********************************************************************************
  * main program
@@ -591,13 +693,6 @@ void setup(void)
     loadSettingsFromFlash();
     printDeviceSettings();
 
-    /* DEBUG this informations must get by RFID card */
-    folder =
-    {
-        .number = 4,
-        .mode   = MODE_SHUFFLE,
-    };
-
     volume = deviceSettings.volumeInit;
     currentTrack = 1;
 
@@ -613,13 +708,29 @@ void setup(void)
     pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
     pinMode(DF_PLAYER_BUSY_PIN, INPUT);
     
+    /* NFC Leser init */
+    SPI.begin();        // Init SPI bus
+    mfrc522.PCD_Init(); // Init MFRC522
+    mfrc522
+    .PCD_DumpVersionToSerial(); // Show details of PCD - MFRC522 Card Reader
+    for (byte i = 0; i < 6; i++) {
+        key.keyByte[i] = 0xFF;
+    }
+    
     playStartupSound();
     delay(200);
     playFolder();
 }
-
+ 
 void loop(void)
 {
-    mp3Loop();
-    buttonHandler();
+    while(!mfrc522.PICC_IsNewCardPresent())
+    {
+        mp3Loop();
+        buttonHandler();
+        delay(1);
+    }
+    mp3Pause();
+    nfcHandler();
+    playFolder();
 }
