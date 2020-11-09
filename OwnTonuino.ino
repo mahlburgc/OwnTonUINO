@@ -22,7 +22,6 @@
    - status led for sleep timer
    - rfid card
    - admin menu
-   - startup sound
  *
  ********************************************************************************
  * MIT License
@@ -64,7 +63,7 @@
 /********************************************************************************
  * defines
  ********************************************************************************/
-//#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
+#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define VERSION             3 /* if number is changed, device settings in eeprom will be reseted */
 /* these presets will be used on device settings reset in eeprom */
@@ -109,7 +108,6 @@
 #define MAX_FOLDER                      100
 
 #define STARTUP_SOUND       500 /* advertisement track number */
-
 #define DF_PLAYER_COM_DELAY 100 /* ms, delay to make shure that communication was finished with df player before continuing in program */
 
 /* For every folder the actual track can be stored in eeprom (audio book mode).
@@ -169,13 +167,14 @@ static void previousTrack(void);
 static void volumeUp(void);
 static void volumeDown(void);
 static void readButtons(void);
-static bool isPlaying(void);
+static bool mp3IsPlaying(void);
 static void shuffleQueue(void);
 static void playFolder(void);
 static void writeSettingsToFlash(void);
 static void resetSettings(void);
 static void loadSettingsFromFlash(void);
 static void playStartupSound(void);
+static void printDeviceSettings(void);
 /* wrapper functions for DFMiniMp3 Player with delay */
 static void mp3Start(void);
 static void mp3Pause(void);
@@ -187,6 +186,9 @@ static uint16_t mp3GetFolderTrackCount(uint8_t folderNr);
 static void playAdvertisement(uint16_t advertTrack);
 static void waitForTrackFinish (void);
 
+/********************************************************************************
+ * classes
+ ********************************************************************************/
 
 class Mp3Notify 
 {
@@ -230,6 +232,9 @@ public:
 
 static DFMiniMp3<SoftwareSerial, Mp3Notify> mp3(mySoftwareSerial);
 
+/********************************************************************************
+ * private functions
+ ********************************************************************************/
 static void nextTrack(void)
 {
     DEBUG_TRACE;
@@ -373,7 +378,7 @@ static void buttonHandler(void)
     if (buttonPause.wasReleased())
     {   
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
-        if (isPlaying())
+        if (mp3IsPlaying())
         {
             mp3Pause();
         }
@@ -386,7 +391,7 @@ static void buttonHandler(void)
     if (buttonUp.wasReleased()) 
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
-        if (isPlaying())
+        if (mp3IsPlaying())
         {
             volumeUp();
         }
@@ -395,7 +400,7 @@ static void buttonHandler(void)
     if (buttonDown.wasReleased())
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
-        if (isPlaying())
+        if (mp3IsPlaying())
         {
             volumeDown();
         }
@@ -404,7 +409,7 @@ static void buttonHandler(void)
     if (buttonNext.wasReleased())
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
-        if (isPlaying())
+        if (mp3IsPlaying())
         {
             nextTrack();
         }
@@ -413,16 +418,11 @@ static void buttonHandler(void)
     if (buttonPrev.wasReleased())
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
-        if (isPlaying())
+        if (mp3IsPlaying())
         {
             previousTrack();
         }
     }
-}
-
-static bool isPlaying(void)
-{
-  return !digitalRead(DF_PLAYER_BUSY_PIN);
 }
 
 static void shuffleQueue(void)
@@ -493,53 +493,6 @@ static void playFolder(void)
     }
 }
 
-static void writeSettingsToFlash(void) 
-{
-    DEBUG_TRACE;
-    
-    EEPROM.put(EEPROM_DEVICE_SETTINGS_ADDR, deviceSettings);
-}
-
-static void resetSettings(void)
-{
-    DEBUG_TRACE;
-    
-    deviceSettings.version      = VERSION;
-    deviceSettings.volumeMin    = VOLUME_MIN_PRESET;
-    deviceSettings.volumeMax    = VOLUME_MAX_PRESET;
-    deviceSettings.volumeInit   = VOLUME_INIT_PRESET;
-    deviceSettings.sleepTimer   = SLEEP_TIMER_PRESET;
-
-    writeSettingsToFlash();
-}
-
-static void loadSettingsFromFlash(void)
-{
-    DEBUG_TRACE;
-    
-    EEPROM.get(EEPROM_DEVICE_SETTINGS_ADDR, deviceSettings);
-    
-    if (deviceSettings.version != VERSION)
-    {
-        resetSettings();
-    }
-    
-    DEBUG_PRINT(F("version: "));
-    DEBUG_PRINT_LN(deviceSettings.version);
-
-    DEBUG_PRINT(F("volume max: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeMax);
-
-    DEBUG_PRINT(F("volume min: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeMin);
-
-    DEBUG_PRINT(F("volume initial: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeInit);
-
-    DEBUG_PRINT(F("sleep timer: "));
-    DEBUG_PRINT_LN(deviceSettings.sleepTimer);
-}
-
 static void playStartupSound(void)
 {
     DEBUG_TRACE;
@@ -547,46 +500,11 @@ static void playStartupSound(void)
     waitForTrackFinish();
 }
 
-static void mp3Start(void)
-{
-    mp3.start();
-    delay(DF_PLAYER_COM_DELAY);
-}
-
-static void mp3Pause(void)
-{
-    mp3.pause();
-    delay(DF_PLAYER_COM_DELAY);
-}
-
-static void mp3SetVolume(uint8_t volume)
-{
-    mp3.setVolume(volume);
-    delay(DF_PLAYER_COM_DELAY);
-}
-
-static void mp3PlayFolderTrack(uint8_t folder, uint16_t track)
-{
-    mp3.playFolderTrack(folder, track);
-    delay(DF_PLAYER_COM_DELAY);
-}
-
-static void mp3Begin(void)
-{
-    mp3.begin();
-    delay(DF_PLAYER_COM_DELAY);   
-}
-
-static uint16_t mp3GetFolderTrackCount(uint8_t folderNr)
-{
-    return mp3.getFolderTrackCount(folderNr);
-}
-
 static void playAdvertisement(uint16_t advertTrack)
 {
     DEBUG_TRACE;
     
-    if (isPlaying())
+    if (mp3IsPlaying())
     {
         mp3.playAdvertisement(advertTrack);
         waitForTrackFinish();
@@ -604,12 +522,7 @@ static void playAdvertisement(uint16_t advertTrack)
     }
 }
 
-static void mp3Loop(void)
-{
-    mp3.loop();
-}
-
-static void waitForTrackFinish (void)
+static void waitForTrackFinish(void)
 {
     DEBUG_TRACE;
     
@@ -626,20 +539,40 @@ static void waitForTrackFinish (void)
     /* Wait for track to finish. Therefore it must be checked that new track already started.
      * Otherwise it's possible that "track finished" is detected in the timeslice, in which the dfplayer needs to start the new track.
      */
-    while ((!isPlaying()) && (millis() < (timeStart + TRACK_FINISHED_TIMEOUT)))
+    while ((!mp3IsPlaying()) && (millis() < (timeStart + TRACK_FINISHED_TIMEOUT)))
     {
         /* wait for track starting */
     }
     DEBUG_PRINT_LN(F("track started"));
     
-    while (isPlaying())
+    while (mp3IsPlaying())
     {
         /* wait for track to finish */
     }
     DEBUG_PRINT_LN(F("track finished"));
 }
-    
-    
+
+static void printDeviceSettings(void)
+{
+    DEBUG_PRINT(F("version: "));
+    DEBUG_PRINT_LN(deviceSettings.version);
+
+    DEBUG_PRINT(F("volume max: "));
+    DEBUG_PRINT_LN(deviceSettings.volumeMax);
+
+    DEBUG_PRINT(F("volume min: "));
+    DEBUG_PRINT_LN(deviceSettings.volumeMin);
+
+    DEBUG_PRINT(F("volume initial: "));
+    DEBUG_PRINT_LN(deviceSettings.volumeInit);
+
+    DEBUG_PRINT(F("sleep timer: "));
+    DEBUG_PRINT_LN(deviceSettings.sleepTimer);
+}
+
+/********************************************************************************
+ * main program
+ ********************************************************************************/
 void setup(void)
 {
     uint32_t ADC_LSB = 0;
@@ -656,6 +589,7 @@ void setup(void)
     Serial.begin(SERIAL_BAUD);
     
     loadSettingsFromFlash();
+    printDeviceSettings();
 
     /* DEBUG this informations must get by RFID card */
     folder =
