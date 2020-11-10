@@ -218,7 +218,6 @@ static NfcTagObject_t setupNfcTag(void)
     DEBUG_TRACE;
     
     FolderMode_t modeSelector = MODE_ALBUM;
-    bool buttonPressed = false;
     uint16_t folderCount = mp3GetTotalFolderCount();
     uint16_t folderSelector = 1; /* can something between 1 and "number of folders" */
     NfcTagObject_t newNfcTag = 
@@ -237,28 +236,26 @@ static NfcTagObject_t setupNfcTag(void)
     mp3PlayMp3FolderTrack(folderSelector);
     mp3PlayFolderTrack(folderSelector, 1);
     
+    readButtons();
     while (!buttonWasReleased(BUTTON_PLAY))
     {
+        readButtons();
         mp3Loop();
         
         if (buttonWasReleased(BUTTON_UP) && (folderSelector < folderCount))
         {
             folderSelector++;
-            buttonPressed = true;
         }
         else if (buttonWasReleased(BUTTON_DOWN) && (folderSelector > 1))
         {
             folderSelector--;
-            buttonPressed = true;
         }
         
-        if (buttonPressed)
+        if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
         {
             mp3PlayMp3FolderTrack(folderSelector);
             mp3PlayFolderTrack(folderSelector, 1); 
-            buttonPressed = false;
         }
-
     }
 
     newNfcTag.folderSettings.number = folderSelector;
@@ -267,22 +264,22 @@ static NfcTagObject_t setupNfcTag(void)
     mp3PlayMp3FolderTrack(MP3_SELECT_LISTEN_MODE);
     mp3PlayMp3FolderTrack(MP3_LISTEN_MODE_ALBUM);
     
+    readButtons();
     while (!buttonWasReleased(BUTTON_PLAY))
     {
+        readButtons();
         mp3Loop();
 
         if (buttonWasReleased(BUTTON_UP) && (modeSelector < (NR_OF_MODES - 1)))
         {
             modeSelector = (FolderMode_t)((uint8_t)modeSelector + 1);
-            buttonPressed = true;
         }
         else if (buttonWasReleased(BUTTON_DOWN) && (modeSelector > 1))
         {
             modeSelector = (FolderMode_t)((uint8_t)modeSelector - 1);
-            buttonPressed = true;
         }
             
-        if (buttonPressed)
+        if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
         {
             switch(modeSelector)
             {                
@@ -304,13 +301,10 @@ static NfcTagObject_t setupNfcTag(void)
                 mp3PlayMp3FolderTrack(MP3_LISTEN_MODE_ALBUM);
                 break;
             }
-            
-            buttonPressed = false;
-        }
-        
+        }   
     }
+    
     newNfcTag.folderSettings.mode = modeSelector;
-
     writeNfcTag(newNfcTag);
     
     return newNfcTag;

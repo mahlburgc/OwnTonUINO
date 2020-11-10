@@ -106,21 +106,28 @@ after configure new card
 #define MAX_FOLDER                      100
 
 /*mp3 track number */
-#define MP3_STARTUP_SOUND          500
-#define MP3_NEW_NFC_TAG            300
-#define MP3_SELECT_FOLDER          301
-#define MP3_SELECT_LISTEN_MODE     310
-#define MP3_LISTEN_MODE_ALBUM      312
-#define MP3_LISTEN_MODE_SHUFFLE    313
-#define MP3_LISTEN_MODE_AUDIO_BOOK 315
-#define MP3_LISTEN_MODE_ADMIN      316
-#define MP3_OWEH_DAS_HAT_LEIDER    401
-#define MP3_OK_ICH_HABE_DIE_KAR    400
-#define MP3_RESET_OK               999
-#define MP3_ADMIN_MENU             900
-#define MP3_ADMIN_MENU_RESET_TAG   901
-#define MP3_ADMIN_MENU_INSERT_TAG  800
-#define MP3_ABORT                  802
+#define MP3_STARTUP_SOUND                   500
+#define MP3_NEW_NFC_TAG                     300
+#define MP3_SELECT_FOLDER                   301
+#define MP3_SELECT_LISTEN_MODE              310
+#define MP3_LISTEN_MODE_ALBUM               312
+#define MP3_LISTEN_MODE_SHUFFLE             313
+#define MP3_LISTEN_MODE_AUDIO_BOOK          315
+#define MP3_LISTEN_MODE_ADMIN               316
+#define MP3_OWEH_DAS_HAT_LEIDER             401
+#define MP3_OK_ICH_HABE_DIE_KAR             400
+#define MP3_RESET_OK                        999
+#define MP3_ADMIN_MENU                      900
+#define MP3_ADMIN_MENU_RESET_TAG            901
+#define MP3_ADMIN_MENU_INSERT_TAG           800
+#define MP3_ADMIN_MENU_VOL_MAX              902
+#define MP3_ADMIN_MENU_VOL_MIN              903
+#define MP3_ADMIN_MENU_VOL_INI              904
+#define MP3_ADMIN_MENU_VOL_MAX_SELECTED     930
+#define MP3_ADMIN_MENU_VOL_MIN_SELECTED     931
+#define MP3_ADMIN_MENU_VOL_INI_SELECTED     932
+#define MP3_ADMIN_MENU_SLEEP_TIMER          908
+#define MP3_ABORT                           802
 
 #define DF_PLAYER_COM_DELAY 100 /* ms, delay to make shure that communication was finished with df player before continuing in program */
 
@@ -160,7 +167,11 @@ typedef enum
 {
     ADMIN_MENU_FIRST_OPTION     = 0,
     ADMIN_MENU_RESET_NFC_TAG    = 0,
-    ADMIN_MENU_LAST_OPTION      = 0, /* DO NOT USE AS OPTION */
+    ADMIN_MENU_SET_VOL_MAX   = 1,
+    ADMIN_MENU_SET_VOL_MIN   = 2,
+    ADMIN_MENU_SET_VOL_INI  = 3,
+    ADMIN_MENU_SET_SLEEP_TIMER  = 4,
+    ADMIN_MENU_LAST_OPTION      = 4, /* DO NOT USE AS OPTION */
 } AdminMenuOptions_t;
 
 typedef struct 
@@ -188,7 +199,7 @@ typedef struct
 /* DFPlayer Mini */
 static SoftwareSerial mySoftwareSerial(DF_PLAYER_RX_PIN, DF_PLAYER_TX_PIN); // RX, TX
 static uint16_t numTracksInFolder;
-static uint16_t currentTrack;
+static uint16_t currentTrack = 1;
 static uint8_t queue[255];
 static uint8_t volume;
 
@@ -264,7 +275,6 @@ static void readButtons(void);
 /********************************************************************************
  * classes
  ********************************************************************************/
-
 class Mp3Notify 
 {
 public:
@@ -447,15 +457,30 @@ static void volumeDown(void)
 
 static void buttonHandler(void)
 {
-    if (buttonIsPressed(BUTTON_UP) && buttonIsPressed(BUTTON_DOWN) && buttonIsPressed(BUTTON_PLAY))
+    readButtons();
+    
+    if (buttonIsPressed(BUTTON_DOWN) && buttonIsPressed(BUTTON_UP) && buttonIsPressed(BUTTON_PLAY))
     {
+        DEBUG_PRINT_LN(F("BUTTON PLAY UP DOWN PRESSED"));
         adminMenu();
         playFolder();
     }
     
+    if (buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
+    {
+        /* reset to first track / mix shuffle queue */
+        DEBUG_PRINT_LN(F("BUTTON PLAY LONG PRESS"));
+        if (folder.mode == MODE_AUDIO_BOOK)
+        {
+            EEPROM.update(folder.number, 1);
+        }
+        playFolder();
+    }
+        
+    
     if (buttonWasReleased(BUTTON_PLAY))
     {   
-        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
+        DEBUG_PRINT_LN(F("BUTTON PLAY RELEASED"));
         if (mp3IsPlaying())
         {
             mp3Pause();
@@ -468,7 +493,7 @@ static void buttonHandler(void)
     
     if (buttonWasReleased(BUTTON_UP)) 
     {
-        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
+        DEBUG_PRINT_LN(F("BUTTON UP RELEASED"));
         if (mp3IsPlaying())
         {
             volumeUp();
@@ -477,7 +502,7 @@ static void buttonHandler(void)
 
     if (buttonWasReleased(BUTTON_DOWN))
     {
-        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
+        DEBUG_PRINT_LN(F("BUTTON DOWN RELEASED"));
         if (mp3IsPlaying())
         {
             volumeDown();
@@ -486,7 +511,7 @@ static void buttonHandler(void)
 
     if (buttonWasReleased(BUTTON_NEXT))
     {
-        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
+        DEBUG_PRINT_LN(F("BUTTON NEXT RELEASED"));
         if (mp3IsPlaying())
         {
             nextTrack();
@@ -495,7 +520,7 @@ static void buttonHandler(void)
     
     if (buttonWasReleased(BUTTON_PREV))
     {
-        DEBUG_PRINT_LN(F("BUTTON PRESSED"));
+        DEBUG_PRINT_LN(F("BUTTON PREV RELEASED"));
         if (mp3IsPlaying())
         {
             previousTrack();
@@ -644,39 +669,42 @@ static void adminMenu(void)
  
     AdminMenuOptions_t menuOption = ADMIN_MENU_FIRST_OPTION;
     
-    bool buttonPressed = false;
     nfcConfigInProgess = true;
     mp3Pause();
     mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
+    mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);    
     
+    readButtons();
     while(!buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
     {
+        readButtons();
         mp3Loop();
 
         if (buttonWasReleased(BUTTON_UP) && (menuOption < (ADMIN_MENU_LAST_OPTION)))
         {
             menuOption = (AdminMenuOptions_t)((uint8_t)menuOption + 1);
-            buttonPressed = true;
         }
-       else if (buttonWasReleased(BUTTON_DOWN) && (menuOption > ADMIN_MENU_FIRST_OPTION))
+        else if (buttonWasReleased(BUTTON_DOWN) && (menuOption > ADMIN_MENU_FIRST_OPTION))
         {
             menuOption = (AdminMenuOptions_t)((uint8_t)menuOption - 1);
-            buttonPressed = true;
         }
          
         switch(menuOption)
         {
         case ADMIN_MENU_RESET_NFC_TAG:
-            if (buttonPressed)
-            {
-                mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
-                buttonPressed = false;
-            }
-            if (buttonWasReleased(BUTTON_PLAY))
-            {
-                resetNfcTag();
-                mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
-            }
+            adminMenu_resetNfcTag();
+            break;
+            
+        case ADMIN_MENU_SET_VOL_MAX:
+            /* fall through */
+        case ADMIN_MENU_SET_VOL_MIN:
+            /* fall through */
+        case ADMIN_MENU_SET_VOL_INI:
+            adminMenu_setVolume(menuOption);
+            break;
+            
+        case ADMIN_MENU_SET_SLEEP_TIMER:
+           //adminMenu_setSleeptimer();
             break;
             
         default:
@@ -687,6 +715,93 @@ static void adminMenu(void)
     mp3PlayMp3FolderTrack(MP3_ABORT);
     DEBUG_PRINT_LN(F("BUTTON LONG PRESS"));
     nfcConfigInProgess = false;
+}
+
+static void adminMenu_resetNfcTag(void)
+{
+    if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
+    {
+        mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
+    }
+    if (buttonWasReleased(BUTTON_PLAY))
+    {
+        resetNfcTag();
+        mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
+    }
+}
+
+static void adminMenu_setVolume(AdminMenuOptions_t menuOption)
+{
+    uint8_t volTemp = 0;
+    uint16_t voiceTrack = 0;
+    uint16_t voiceTrack2 = 0;
+    
+    switch(menuOption)
+    {
+    default: /* fall through */
+    case ADMIN_MENU_SET_VOL_MAX:
+        voiceTrack = MP3_ADMIN_MENU_VOL_MAX;
+        voiceTrack2 = MP3_ADMIN_MENU_VOL_MAX_SELECTED;
+        volTemp = deviceSettings.volumeMax;
+        break;
+        
+    case ADMIN_MENU_SET_VOL_MIN: 
+        voiceTrack = MP3_ADMIN_MENU_VOL_MIN;
+        voiceTrack2 = MP3_ADMIN_MENU_VOL_MIN_SELECTED;
+        volTemp = deviceSettings.volumeMin;
+        break;
+        
+    case ADMIN_MENU_SET_VOL_INI:
+        voiceTrack = MP3_ADMIN_MENU_VOL_INI;
+        voiceTrack2 = MP3_ADMIN_MENU_VOL_INI_SELECTED;
+        volTemp = deviceSettings.volumeInit;                                              
+        break;
+    }
+    
+    if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
+    {
+        mp3PlayMp3FolderTrack(voiceTrack); 
+    }
+    
+    if (buttonWasReleased(BUTTON_PLAY))
+    {
+        mp3PlayMp3FolderTrack(voiceTrack2); 
+        
+        readButtons();
+        while (!buttonWasReleased(BUTTON_PLAY))
+        {
+            readButtons();
+            mp3Loop();
+            
+            if (buttonWasReleased(BUTTON_UP) && (volTemp < 30)) /* TODO MACRO */
+            {
+                volTemp++;                
+            }
+            else if (buttonWasReleased(BUTTON_DOWN) && (volTemp > 0))
+            {
+                volTemp--;
+            }
+            
+            if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
+            {
+                mp3SetVolume(volTemp);
+                mp3PlayMp3FolderTrack(volTemp);
+            }
+        }
+
+        switch(menuOption)
+        {
+        default: /* fall through */
+        case ADMIN_MENU_SET_VOL_MAX: deviceSettings.volumeMax = volTemp; break;
+        case ADMIN_MENU_SET_VOL_MIN: deviceSettings.volumeMin = volTemp; break;
+        case ADMIN_MENU_SET_VOL_INI: deviceSettings.volumeInit = volTemp; break;
+        }
+        
+        writeSettingsToFlash();
+        mp3SetVolume(volume);
+        /* TODO add voice track which says "Die Einstellungen wurden gespeichert" */
+        mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
+    }
 }
 
 
@@ -712,7 +827,6 @@ void setup(void)
     printDeviceSettings();
 
     volume = deviceSettings.volumeInit;
-    currentTrack = 1;
 
     mp3Begin();
     mp3SetVolume(volume);

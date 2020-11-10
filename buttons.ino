@@ -2,9 +2,16 @@ static bool buttonWasReleased(ButtonNr_t buttonNr)
 {
     bool retVal = false;
     
-    button[buttonNr].read();
+    bool buttonState = button[buttonNr].wasReleased();
     
-    if (button[buttonNr].wasReleased())
+    //DEBUG_PRINT(F("Button "));
+    //DEBUG_PRINT(buttonNr);
+    //DEBUG_PRINT(F(" released: "));
+    //DEBUG_PRINT(buttonState);
+    //DEBUG_PRINT(F(", long pressed: "));
+    //DEBUG_PRINT_LN(buttonLongPressed[buttonNr]);
+    
+    if (buttonState)
     {        
         if(buttonLongPressed[buttonNr] == true) /* ignore release if button up was pressed for long time */
         {
@@ -22,8 +29,6 @@ static bool buttonPressedFor(ButtonNr_t buttonNr, uint32_t ms)
 {
     bool retVal = false;
     
-    button[buttonNr].read();
-    
     if (button[buttonNr].pressedFor(ms))
     {
         buttonLongPressed[buttonNr] = true;
@@ -34,13 +39,11 @@ static bool buttonPressedFor(ButtonNr_t buttonNr, uint32_t ms)
 
 static bool buttonWasPressed(ButtonNr_t buttonNr)
 {
-    button[buttonNr].read();
     return button[buttonNr].wasPressed();
 }
 
 static bool buttonIsPressed(ButtonNr_t buttonNr)
 {
-    button[buttonNr].read();
     return button[buttonNr].isPressed();
 }
 
