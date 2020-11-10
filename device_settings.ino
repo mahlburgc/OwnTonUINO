@@ -21,11 +21,11 @@ static void resetSettings(void)
 {
     DEBUG_TRACE;
     
-    deviceSettings.version      = VERSION;
-    deviceSettings.volumeMin    = VOLUME_MIN_PRESET;
-    deviceSettings.volumeMax    = VOLUME_MAX_PRESET;
-    deviceSettings.volumeInit   = VOLUME_INIT_PRESET;
-    deviceSettings.sleepTimer   = SLEEP_TIMER_PRESET;
+    deviceSettings.version            = VERSION;
+    deviceSettings.volumeMin          = VOLUME_MIN_PRESET;
+    deviceSettings.volumeMax          = VOLUME_MAX_PRESET;
+    deviceSettings.volumeInit         = VOLUME_INIT_PRESET;
+    deviceSettings.sleepTimerMinutes  = SLEEP_TIMER_MINUTES_PRESET;
 
     writeSettingsToFlash();
     mp3PlayMp3FolderTrack(MP3_RESET_OK);
@@ -46,5 +46,5 @@ static void printDeviceSettings(void)
     DEBUG_PRINT_LN(deviceSettings.volumeInit);
 
     DEBUG_PRINT(F("sleep timer: "));
-    DEBUG_PRINT_LN(deviceSettings.sleepTimer);
+    DEBUG_PRINT_LN(deviceSettings.sleepTimerMinutes);
 }

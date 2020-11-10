@@ -15,13 +15,12 @@
  *  Information and contribution at https://tonuino.de.
  *    
  *  Changed by Christian Mahlburg
- 
- 
- TODO: 
-   - sleep timer
-   - status led for sleep timer
-   - admin menu
-after configure new card
+ *
+ * TODO: 
+ *  - status led for sleep timer
+ *  - admin menu sleep timer configuration
+ *  - modus sleep timer hinzufügen und sleep timer karte erstellen, kann dann eine Figur mit einer Uhr sein.
+ *  - testen, ob nach button umbau noch alle funktionen gehen
  *
  ********************************************************************************
  * MIT License
@@ -63,12 +62,12 @@ after configure new card
  ********************************************************************************/
 #define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
-#define VERSION             3 /* if number is changed, device settings in eeprom will be reseted */
+#define VERSION             4 /* if number is changed, device settings in eeprom will be reseted */
 /* these presets will be used on device settings reset in eeprom */
 #define VOLUME_MIN_PRESET   0
 #define VOLUME_MAX_PRESET   15
 #define VOLUME_INIT_PRESET  6
-#define SLEEP_TIMER_PRESET  0
+#define SLEEP_TIMER_MINUTES_PRESET  5
 
 /* Buttons */
 #define BUTTON_PLAY_PIN     A0
@@ -85,6 +84,8 @@ after configure new card
 #define DF_PLAYER_BUSY_PIN  4
 /* ADC */
 #define OPEN_ANALOG_PIN     A7  /* used for random number generation */
+/* sleep timer led */
+#define SLEEP_TIMER_LED_PIN A5
 
 #define BUTTON_LONG_PRESS_TIME   1000 /* ms */
 
@@ -167,9 +168,9 @@ typedef enum
 {
     ADMIN_MENU_FIRST_OPTION     = 0,
     ADMIN_MENU_RESET_NFC_TAG    = 0,
-    ADMIN_MENU_SET_VOL_MAX   = 1,
-    ADMIN_MENU_SET_VOL_MIN   = 2,
-    ADMIN_MENU_SET_VOL_INI  = 3,
+    ADMIN_MENU_SET_VOL_MAX      = 1,
+    ADMIN_MENU_SET_VOL_MIN      = 2,
+    ADMIN_MENU_SET_VOL_INI      = 3,
     ADMIN_MENU_SET_SLEEP_TIMER  = 4,
     ADMIN_MENU_LAST_OPTION      = 4, /* DO NOT USE AS OPTION */
 } AdminMenuOptions_t;
@@ -186,7 +187,7 @@ typedef struct
     uint8_t volumeMin;
     uint8_t volumeMax;
     uint8_t volumeInit;
-    long    sleepTimer;
+    uint8_t sleepTimerMinutes;
 } DeviceSettings_t;
 
 typedef struct 
@@ -228,7 +229,11 @@ byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
 static const uint32_t GOLDEN_COOKIE = 0xDEADBEEF; /* this cookie is used to identify known cards */
-bool nfcConfigInProgess = false;
+static bool nfcConfigInProgess = false;
+
+/* sleep timer */
+static bool sleepTimerIsActive = false;
+static unsigned long sleepTimerActivationTime = 0;
 
 /* foreward decalarations */
 static void nextTrack(void);
@@ -254,6 +259,7 @@ static void mp3PlayFolderTrack(uint8_t folder, uint16_t track);
 static uint16_t mp3GetFolderTrackCount(uint8_t folderNr);
 static void mp3PlayMp3FolderTrack(uint16_t track);
 static uint16_t mp3GetTotalFolderCount(void);
+static uint8_t mp3GetVolume(void);
 
 static void playAdvertisement(uint16_t advertTrack);
 static void waitForTrackFinish(void);
@@ -270,6 +276,11 @@ static bool buttonPressedFor(ButtonNr_t buttonNr, uint32_t ms);
 static bool buttonWasPressed(ButtonNr_t buttonNr);
 static bool buttonIsPressed(ButtonNr_t buttonNr);
 static void readButtons(void);
+
+/* sleep timer */
+static void sleepTimerHandler(void);
+static void sleepTimerEnable(void);
+static void sleepTimerDisable(void);
 
 
 /********************************************************************************
@@ -465,17 +476,6 @@ static void buttonHandler(void)
         adminMenu();
         playFolder();
     }
-    
-    if (buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
-    {
-        /* reset to first track / mix shuffle queue */
-        DEBUG_PRINT_LN(F("BUTTON PLAY LONG PRESS"));
-        if (folder.mode == MODE_AUDIO_BOOK)
-        {
-            EEPROM.update(folder.number, 1);
-        }
-        playFolder();
-    }
         
     
     if (buttonWasReleased(BUTTON_PLAY))
@@ -490,6 +490,18 @@ static void buttonHandler(void)
             mp3Start();
         }
     } 
+    
+    if (buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
+    {
+        if (sleepTimerIsActive)
+        {
+            sleepTimerDisable();
+        }
+        else
+        {
+            sleepTimerEnable();
+        }
+    }
     
     if (buttonWasReleased(BUTTON_UP)) 
     {
@@ -525,6 +537,17 @@ static void buttonHandler(void)
         {
             previousTrack();
         }
+    }
+    
+    if (buttonPressedFor(BUTTON_PREV, BUTTON_LONG_PRESS_TIME))
+    {
+        /* reset to first track / mix shuffle queue */
+        DEBUG_PRINT_LN(F("BUTTON PLAY LONG PRESS"));
+        if (folder.mode == MODE_AUDIO_BOOK)
+        {
+            EEPROM.update(folder.number, 1);
+        }
+        playFolder();
     }
 }
 
@@ -663,147 +686,76 @@ static void waitForTrackFinish(void)
     DEBUG_PRINT_LN(F("track finished"));
 }
 
-static void adminMenu(void)
+static void sleepTimerHandler(void)
 {
-    DEBUG_TRACE;
- 
-    AdminMenuOptions_t menuOption = ADMIN_MENU_FIRST_OPTION;
+    unsigned long currentTime    = 0;
+    unsigned long sleepTime      = 0;
+    static uint16_t muteCounter  = 0; /* used to mute music steadily */
+    static uint16_t printCounter = 0; /* DEBUG REMOVE THIS */
     
-    nfcConfigInProgess = true;
-    mp3Pause();
-    mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
-    mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);    
-    
-    readButtons();
-    while(!buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
+    if (sleepTimerIsActive)
     {
-        readButtons();
-        mp3Loop();
-
-        if (buttonWasReleased(BUTTON_UP) && (menuOption < (ADMIN_MENU_LAST_OPTION)))
-        {
-            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption + 1);
+        currentTime = millis();
+        sleepTime = sleepTimerActivationTime + ((unsigned long)deviceSettings.sleepTimerMinutes  * 60000); /* x 60000 converts form minutes to ms */
+        
+        /* DEBUG */
+        if (printCounter >= 30) /* this value is choosed by trying to find a good serial print interval */
+        {   
+            DEBUG_PRINT(F("sleep timer time left: "));
+            DEBUG_PRINT_LN((signed long)sleepTime - (signed long)currentTime);
+            printCounter = 0;
         }
-        else if (buttonWasReleased(BUTTON_DOWN) && (menuOption > ADMIN_MENU_FIRST_OPTION))
+        else
         {
-            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption - 1);
+            printCounter++;
         }
-         
-        switch(menuOption)
+            
+        if (currentTime >= sleepTime)
         {
-        case ADMIN_MENU_RESET_NFC_TAG:
-            adminMenu_resetNfcTag();
-            break;
-            
-        case ADMIN_MENU_SET_VOL_MAX:
-            /* fall through */
-        case ADMIN_MENU_SET_VOL_MIN:
-            /* fall through */
-        case ADMIN_MENU_SET_VOL_INI:
-            adminMenu_setVolume(menuOption);
-            break;
-            
-        case ADMIN_MENU_SET_SLEEP_TIMER:
-           //adminMenu_setSleeptimer();
-            break;
-            
-        default:
-            /* nothing to do */
-            break;
+            if (muteCounter >= 50) /* this value is choosed by trying to find a good volume decrease interval */
+            {
+                muteCounter = 0;
+                mp3DecreaseVolume();
+                DEBUG_PRINT_LN(F("Decreasing volume"));
+                
+                if (mp3GetVolume() == 0)
+                {
+                    mp3Pause();
+                    sleepTimerDisable();
+                    DEBUG_PRINT_LN(F("sleeping now ...zzz"));
+                }   
+            }
+            muteCounter++;
         }
-    }
-    mp3PlayMp3FolderTrack(MP3_ABORT);
-    DEBUG_PRINT_LN(F("BUTTON LONG PRESS"));
-    nfcConfigInProgess = false;
-}
-
-static void adminMenu_resetNfcTag(void)
-{
-    if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
-    {
-        mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
-    }
-    if (buttonWasReleased(BUTTON_PLAY))
-    {
-        resetNfcTag();
-        mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
     }
 }
 
-static void adminMenu_setVolume(AdminMenuOptions_t menuOption)
+static void sleepTimerEnable(void)
 {
-    uint8_t volTemp = 0;
-    uint16_t voiceTrack = 0;
-    uint16_t voiceTrack2 = 0;
+    DEBUG_TRACE
     
-    switch(menuOption)
+    /* if sleepTimer is already active, do not reset */
+    if (sleepTimerIsActive == false)
     {
-    default: /* fall through */
-    case ADMIN_MENU_SET_VOL_MAX:
-        voiceTrack = MP3_ADMIN_MENU_VOL_MAX;
-        voiceTrack2 = MP3_ADMIN_MENU_VOL_MAX_SELECTED;
-        volTemp = deviceSettings.volumeMax;
-        break;
-        
-    case ADMIN_MENU_SET_VOL_MIN: 
-        voiceTrack = MP3_ADMIN_MENU_VOL_MIN;
-        voiceTrack2 = MP3_ADMIN_MENU_VOL_MIN_SELECTED;
-        volTemp = deviceSettings.volumeMin;
-        break;
-        
-    case ADMIN_MENU_SET_VOL_INI:
-        voiceTrack = MP3_ADMIN_MENU_VOL_INI;
-        voiceTrack2 = MP3_ADMIN_MENU_VOL_INI_SELECTED;
-        volTemp = deviceSettings.volumeInit;                                              
-        break;
-    }
-    
-    if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
-    {
-        mp3PlayMp3FolderTrack(voiceTrack); 
-    }
-    
-    if (buttonWasReleased(BUTTON_PLAY))
-    {
-        mp3PlayMp3FolderTrack(voiceTrack2); 
-        
-        readButtons();
-        while (!buttonWasReleased(BUTTON_PLAY))
-        {
-            readButtons();
-            mp3Loop();
-            
-            if (buttonWasReleased(BUTTON_UP) && (volTemp < 30)) /* TODO MACRO */
-            {
-                volTemp++;                
-            }
-            else if (buttonWasReleased(BUTTON_DOWN) && (volTemp > 0))
-            {
-                volTemp--;
-            }
-            
-            if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
-            {
-                mp3SetVolume(volTemp);
-                mp3PlayMp3FolderTrack(volTemp);
-            }
-        }
-
-        switch(menuOption)
-        {
-        default: /* fall through */
-        case ADMIN_MENU_SET_VOL_MAX: deviceSettings.volumeMax = volTemp; break;
-        case ADMIN_MENU_SET_VOL_MIN: deviceSettings.volumeMin = volTemp; break;
-        case ADMIN_MENU_SET_VOL_INI: deviceSettings.volumeInit = volTemp; break;
-        }
-        
-        writeSettingsToFlash();
-        mp3SetVolume(volume);
-        /* TODO add voice track which says "Die Einstellungen wurden gespeichert" */
-        mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
+        sleepTimerIsActive = true;
+        sleepTimerActivationTime = millis();
+        digitalWrite(SLEEP_TIMER_LED_PIN, HIGH);
+        DEBUG_PRINT_LN(F("sleep timer enabled"));        
     }
 }
 
+static void sleepTimerDisable(void)
+{
+    DEBUG_TRACE
+    
+    sleepTimerIsActive = false;
+    sleepTimerActivationTime = 0;
+    mp3SetVolume(volume); /* reset volume if sleepTimer is deactivated while decreasing volume in sleepTimerHandler */
+    digitalWrite(SLEEP_TIMER_LED_PIN, LOW);
+    DEBUG_PRINT_LN(F("sleep timer disabled"));
+}
+        
+        
 
 /********************************************************************************
  * main program
@@ -822,8 +774,10 @@ void setup(void)
     randomSeed(ADCSeed); /* initialize random generator */
    
     Serial.begin(SERIAL_BAUD);
-    
     loadSettingsFromFlash();
+    /* DEBUG REMOVE THIS */
+    deviceSettings.sleepTimerMinutes = 1;
+    
     printDeviceSettings();
 
     volume = deviceSettings.volumeInit;
@@ -838,7 +792,8 @@ void setup(void)
     pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
     pinMode(BUTTON_NEXT_PIN, INPUT_PULLUP);
     pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
-    pinMode(DF_PLAYER_BUSY_PIN, INPUT);
+    pinMode(SLEEP_TIMER_LED_PIN, OUTPUT);
+    pinMode(DF_PLAYER_BUSY_PIN, INPUT_PULLUP);
        
     /* NFC Leser init */
     SPI.begin();        // Init SPI bus
@@ -860,6 +815,7 @@ void loop(void)
     {
         mp3Loop();
         buttonHandler();
+        sleepTimerHandler();
         delay(1);
     }
 

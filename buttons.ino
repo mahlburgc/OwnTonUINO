@@ -29,7 +29,8 @@ static bool buttonPressedFor(ButtonNr_t buttonNr, uint32_t ms)
 {
     bool retVal = false;
     
-    if (button[buttonNr].pressedFor(ms))
+    /* avoid detecting more than one lon button press if button is pressed for very long time without release */
+    if (button[buttonNr].pressedFor(ms) && (buttonLongPressed[buttonNr] == false))
     {
         buttonLongPressed[buttonNr] = true;
         retVal = true;

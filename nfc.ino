@@ -15,6 +15,8 @@ static void nfcHandler(void)
     {
         if (nfcTag.cookie != GOLDEN_COOKIE)
         {
+            sleepTimerDisable();
+            
             /* configure new card */  
             mp3PlayMp3FolderTrack(MP3_NEW_NFC_TAG);
             nfcTag = setupNfcTag();

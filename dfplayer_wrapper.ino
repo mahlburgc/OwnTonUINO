@@ -16,6 +16,18 @@ static void mp3SetVolume(uint8_t volume)
     delay(DF_PLAYER_COM_DELAY);
 }
 
+static void mp3IncreaseVolume()
+{
+    mp3.increaseVolume();
+    delay(DF_PLAYER_COM_DELAY);
+}
+
+static void mp3DecreaseVolume()
+{
+    mp3.decreaseVolume();
+    delay(DF_PLAYER_COM_DELAY);
+}
+
 static void mp3PlayFolderTrack(uint8_t folder, uint16_t track)
 {
     mp3.playFolderTrack(folder, track);
@@ -53,3 +65,8 @@ static void mp3PlayMp3FolderTrack(uint16_t track)
     mp3.playMp3FolderTrack(track);
     waitForTrackFinish();
 }
+
+static uint8_t mp3GetVolume(void)
+{
+    return mp3.getVolume();
+}    
