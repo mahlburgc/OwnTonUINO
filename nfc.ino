@@ -20,6 +20,16 @@ static void nfcHandler(void)
             nfcTag = setupNfcTag();
             folder = nfcTag.folderSettings;
             
+            /* DEBUG REMOVE THIS */
+            DEBUG_PRINT(F("new folder number: ")); 
+            DEBUG_PRINT_LN(nfcTag.folderSettings.number);
+            DEBUG_PRINT(F("new folder mode:"));
+            DEBUG_PRINT_LN(nfcTag.folderSettings.mode);
+            
+            DEBUG_PRINT(F("copied folder number: ")); 
+            DEBUG_PRINT_LN(folder.number);
+            DEBUG_PRINT(F("copied folder mode:"));
+            DEBUG_PRINT_LN(folder.mode);
         }
         else
         {
@@ -208,6 +218,7 @@ static NfcTagObject_t setupNfcTag(void)
     DEBUG_TRACE;
     
     FolderMode_t modeSelector = MODE_ALBUM;
+    bool buttonPressed = false;
     uint16_t folderCount = mp3GetTotalFolderCount();
     uint16_t folderSelector = 1; /* can something between 1 and "number of folders" */
     NfcTagObject_t newNfcTag = 
@@ -225,23 +236,29 @@ static NfcTagObject_t setupNfcTag(void)
     mp3PlayMp3FolderTrack(MP3_SELECT_FOLDER);
     mp3PlayMp3FolderTrack(folderSelector);
     mp3PlayFolderTrack(folderSelector, 1);
-    readButtons();
-    while (!buttonPause.wasReleased())
+    
+    while (!buttonWasReleased(BUTTON_PLAY))
     {
-        readButtons();
-        if (buttonUp.wasReleased() || buttonDown.wasReleased())
+        mp3Loop();
+        
+        if (buttonWasReleased(BUTTON_UP) && (folderSelector < folderCount))
         {
-            if (buttonUp.wasReleased() && (folderSelector < folderCount))
-            {
-                folderSelector++;
-            }
-            else if (buttonDown.wasReleased() && (folderSelector > 1))
-            {
-                folderSelector--;
-            }
-            mp3PlayMp3FolderTrack(folderSelector);
-            mp3PlayFolderTrack(folderSelector, 1);
+            folderSelector++;
+            buttonPressed = true;
         }
+        else if (buttonWasReleased(BUTTON_DOWN) && (folderSelector > 1))
+        {
+            folderSelector--;
+            buttonPressed = true;
+        }
+        
+        if (buttonPressed)
+        {
+            mp3PlayMp3FolderTrack(folderSelector);
+            mp3PlayFolderTrack(folderSelector, 1); 
+            buttonPressed = false;
+        }
+
     }
 
     newNfcTag.folderSettings.number = folderSelector;
@@ -249,21 +266,24 @@ static NfcTagObject_t setupNfcTag(void)
     /* setup listen mode or admin nfc tag */
     mp3PlayMp3FolderTrack(MP3_SELECT_LISTEN_MODE);
     mp3PlayMp3FolderTrack(MP3_LISTEN_MODE_ALBUM);
-    readButtons();
-    while (!buttonPause.wasReleased())
+    
+    while (!buttonWasReleased(BUTTON_PLAY))
     {
-        readButtons();
-        if (buttonUp.wasReleased() || buttonDown.wasReleased())
+        mp3Loop();
+
+        if (buttonWasReleased(BUTTON_UP) && (modeSelector < (NR_OF_MODES - 1)))
         {
-            if (buttonUp.wasReleased() && (modeSelector < (MODE_NR_OF_MODES - 1)))
-            {
-                modeSelector = (FolderMode_t)((uint8_t)modeSelector + 1);
-            }
-            else if (buttonDown.wasReleased() && (modeSelector > 1))
-            {
-                modeSelector = (FolderMode_t)((uint8_t)modeSelector - 1);
-            }
+            modeSelector = (FolderMode_t)((uint8_t)modeSelector + 1);
+            buttonPressed = true;
+        }
+        else if (buttonWasReleased(BUTTON_DOWN) && (modeSelector > 1))
+        {
+            modeSelector = (FolderMode_t)((uint8_t)modeSelector - 1);
+            buttonPressed = true;
+        }
             
+        if (buttonPressed)
+        {
             switch(modeSelector)
             {                
             case MODE_SHUFFLE:
@@ -284,7 +304,10 @@ static NfcTagObject_t setupNfcTag(void)
                 mp3PlayMp3FolderTrack(MP3_LISTEN_MODE_ALBUM);
                 break;
             }
+            
+            buttonPressed = false;
         }
+        
     }
     newNfcTag.folderSettings.mode = modeSelector;
 
@@ -297,19 +320,24 @@ static void resetNfcTag(void)
 {    
     DEBUG_TRACE;
     
+    NfcTagObject_t nfcTag;
+    
     while(!mfrc522.PICC_IsNewCardPresent())
     {
+        mp3Loop();
         DEBUG_PRINT_LN(F("no card to reconfigure found"));
         delay(100);
     }
     
     while(!mfrc522.PICC_ReadCardSerial())
     {
+        mp3Loop();
         DEBUG_PRINT_LN(F("cannot read card"));
         delay(100);
     }
     
-    setupNfcTag();
+    nfcTag = setupNfcTag();
+    folder = nfcTag.folderSettings;
 }
 
 void dump_byte_array(uint8_t* buffer, uint8_t bufferSize)

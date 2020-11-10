@@ -41,6 +41,7 @@ static uint16_t mp3GetTotalFolderCount(void)
 static void mp3Loop(void)
 {
     mp3.loop();
+    delay(1);
 }
 static bool mp3IsPlaying(void)
 {

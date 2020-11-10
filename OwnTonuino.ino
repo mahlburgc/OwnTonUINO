@@ -21,15 +21,6 @@
    - sleep timer
    - status led for sleep timer
    - admin menu
-   - bug fix for shuffle track 0
-   - bug fix 
-   ==> void nextTrack()
-audio book mode -> end, store progress, reset to first track==> void nextTrack()
-audio book mode -> end, store progress, reset to first track==> void nextTrack()
-audio book mode -> end, store progress, reset to first track==> void nextTrack()
-audio book mode -> end, store progress, reset to first track==> void nextTrack()
-audio book mode -> end, store progress, reset to first track==> void nextTrack()
-audio book mode -> end, store progress, reset to first trackcom error 130
 after configure new card
  *
  ********************************************************************************
@@ -66,8 +57,6 @@ after configure new card
 #include <MFRC522.h>
 #include <SPI.h>
 #include <SoftwareSerial.h>
-#include <avr/sleep.h>
-
 
 /********************************************************************************
  * defines
@@ -82,7 +71,7 @@ after configure new card
 #define SLEEP_TIMER_PRESET  0
 
 /* Buttons */
-#define BUTTON_PAUSE_PIN    A0
+#define BUTTON_PLAY_PIN     A0
 #define BUTTON_UP_PIN       A2
 #define BUTTON_DOWN_PIN     A1
 #define BUTTON_NEXT_PIN     A4
@@ -97,7 +86,7 @@ after configure new card
 /* ADC */
 #define OPEN_ANALOG_PIN     A7  /* used for random number generation */
 
-#define BUTTON_LONG_PRESS   1000 /* ms */
+#define BUTTON_LONG_PRESS_TIME   1000 /* ms */
 
 #ifdef  DEBUG
 #define DEBUG_PRINT(x)      Serial.print(x)
@@ -131,6 +120,7 @@ after configure new card
 #define MP3_ADMIN_MENU             900
 #define MP3_ADMIN_MENU_RESET_TAG   901
 #define MP3_ADMIN_MENU_INSERT_TAG  800
+#define MP3_ABORT                  802
 
 #define DF_PLAYER_COM_DELAY 100 /* ms, delay to make shure that communication was finished with df player before continuing in program */
 
@@ -146,6 +136,16 @@ after configure new card
  * static memeber
  ********************************************************************************/
 
+typedef enum
+{
+    BUTTON_PLAY,
+    BUTTON_UP,
+    BUTTON_DOWN,
+    BUTTON_NEXT,
+    BUTTON_PREV,
+    NR_OF_BUTTONS,    /* DO NOT USE AS BUTTON */
+} ButtonNr_t;
+
 typedef enum 
 {
     MODE_UNSET,       /* folder not configured */
@@ -153,13 +153,14 @@ typedef enum
     MODE_SHUFFLE,     /* play whole folder in random sequence */
     MODE_AUDIO_BOOK,  /* play whole folder in normal sequence from last playes track */
     MODE_ADMIN,       /* admin mode */
-    MODE_NR_OF_MODES, /* DO NOT USE AS MODE */
+    NR_OF_MODES,      /* DO NOT USE AS MODE */
 } FolderMode_t;
 
 typedef enum
 {
-    ADMIN_MENU_RESET_NFC_TAG,
-    ADMIN_MENU_NR_OF_OPTIONS, /* DO NOT USE AS OPTION */
+    ADMIN_MENU_FIRST_OPTION     = 0,
+    ADMIN_MENU_RESET_NFC_TAG    = 0,
+    ADMIN_MENU_LAST_OPTION      = 0, /* DO NOT USE AS OPTION */
 } AdminMenuOptions_t;
 
 typedef struct 
@@ -195,11 +196,17 @@ static FolderSettings_t folder;
 static DeviceSettings_t deviceSettings;
 
 /* Buttons */
-Button buttonPause(BUTTON_PAUSE_PIN);
-Button buttonUp(BUTTON_UP_PIN);
-Button buttonDown(BUTTON_DOWN_PIN);
-Button buttonNext(BUTTON_NEXT_PIN);
-Button buttonPrev(BUTTON_PREV_PIN);
+static Button button[NR_OF_BUTTONS] = 
+{
+    BUTTON_PLAY_PIN, 
+    BUTTON_UP_PIN, 
+    BUTTON_DOWN_PIN,
+    BUTTON_NEXT_PIN, 
+    BUTTON_PREV_PIN,
+};
+
+/* helper array to ignore button release after long press */
+static bool buttonLongPressed[NR_OF_BUTTONS] = { false, false, false, false, false };
 
 /* MFRC522 */
 MFRC522 mfrc522(MFRC522_SS_PIN, MFRC522_RST_PIN); 
@@ -217,7 +224,6 @@ static void nextTrack(void);
 static void previousTrack(void);
 static void volumeUp(void);
 static void volumeDown(void);
-static void readButtons(void);
 static bool mp3IsPlaying(void);
 static void shuffleQueue(void);
 static void playFolder(void);
@@ -246,6 +252,13 @@ static bool readNfcTag(NfcTagObject_t* nfcTag);
 static bool writeNfcTag(NfcTagObject_t nfcTag);
 static NfcTagObject_t setupNfcTag(void);
 static void resetNfcTag(void);
+
+/* wrapper functions for JC_Buttons */
+static bool buttonWasReleased(ButtonNr_t buttonNr);
+static bool buttonPressedFor(ButtonNr_t buttonNr, uint32_t ms);
+static bool buttonWasPressed(ButtonNr_t buttonNr);
+static bool buttonIsPressed(ButtonNr_t buttonNr);
+static void readButtons(void);
 
 
 /********************************************************************************
@@ -432,20 +445,15 @@ static void volumeDown(void)
     DEBUG_PRINT_LN(volume);
 }
 
-static void readButtons(void)
-{
-    buttonPause.read();
-    buttonUp.read();
-    buttonDown.read();
-    buttonNext.read();
-    buttonPrev.read();
-}
-
 static void buttonHandler(void)
 {
-    readButtons();
+    if (buttonIsPressed(BUTTON_UP) && buttonIsPressed(BUTTON_DOWN) && buttonIsPressed(BUTTON_PLAY))
+    {
+        adminMenu();
+        playFolder();
+    }
     
-    if (buttonPause.wasReleased())
+    if (buttonWasReleased(BUTTON_PLAY))
     {   
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (mp3IsPlaying())
@@ -458,7 +466,7 @@ static void buttonHandler(void)
         }
     } 
     
-    if (buttonUp.wasReleased()) 
+    if (buttonWasReleased(BUTTON_UP)) 
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (mp3IsPlaying())
@@ -467,7 +475,7 @@ static void buttonHandler(void)
         }
     }
 
-    if (buttonDown.wasReleased())
+    if (buttonWasReleased(BUTTON_DOWN))
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (mp3IsPlaying())
@@ -476,7 +484,7 @@ static void buttonHandler(void)
         }
     }
 
-    if (buttonNext.wasReleased())
+    if (buttonWasReleased(BUTTON_NEXT))
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (mp3IsPlaying())
@@ -485,7 +493,7 @@ static void buttonHandler(void)
         }
     }
     
-    if (buttonPrev.wasReleased())
+    if (buttonWasReleased(BUTTON_PREV))
     {
         DEBUG_PRINT_LN(F("BUTTON PRESSED"));
         if (mp3IsPlaying())
@@ -502,13 +510,20 @@ static void shuffleQueue(void)
     /* create queue for shuffle */
     for (uint8_t i = 0; i < numTracksInFolder; i++)
     {
-        queue[i] = i;
+        queue[i] = i + 1; /* track number starts with 1 */
+    }
+    
+    /* DEBUG */
+    DEBUG_PRINT_LN(F("Queue unmixed:"));
+    for (uint8_t i = 0; i < numTracksInFolder; i++)
+    {
+        DEBUG_PRINT_LN(queue[i]);
     }
   
     /* fill queue with zeros */
     for (uint8_t i = numTracksInFolder; i < MAX_TRACKS_IN_FOLDER; i++)
     {
-        queue[i] = i;
+        queue[i] = 0;
     }
   
     /* mix queue */
@@ -521,7 +536,7 @@ static void shuffleQueue(void)
     }
     
     /* DEBUG */
-    DEBUG_PRINT_LN(F("Queue :"));
+    DEBUG_PRINT_LN(F("Queue mixed:"));
     for (uint8_t i = 0; i < numTracksInFolder; i++)
     {
         DEBUG_PRINT_LN(queue[i]);
@@ -611,12 +626,14 @@ static void waitForTrackFinish(void)
     while ((!mp3IsPlaying()) && (millis() < (timeStart + TRACK_FINISHED_TIMEOUT)))
     {
         /* wait for track starting */
+        mp3Loop();
     }
     DEBUG_PRINT_LN(F("track started"));
     
     while (mp3IsPlaying())
     {
         /* wait for track to finish */
+        mp3Loop();
     }
     DEBUG_PRINT_LN(F("track finished"));
 }
@@ -625,50 +642,51 @@ static void adminMenu(void)
 {
     DEBUG_TRACE;
  
-    //AdminMenuOptions_t menuOption = ADMIN_MENU_RESET_NFC_TAG;
-    //
-    //mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
-    //
-    //readButtons();
-    //while(!buttonPause.pressedFor(BUTTON_LONG_PRESS))
-    //{
-    //    readButtons();
-    //    if (buttonUp.wasPressed() || buttonDown.wasPressed() || buttonPause.wasReleased())
-    //    {
-    //        if (buttonUp.wasPressed() && (menuOption < (ADMIN_MENU_NR_OF_OPTIONS - 1)))
-    //        {
-    //            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption + 1);
-    //        }
-    //       else if (buttonDown.wasPressed() && (menuOption > 1))
-    //        {
-    //            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption - 1);
-    //        }
-    //        
-    //        switch(menuOption)
-    //        {
-    //        case ADMIN_MENU_RESET_NFC_TAG:
-    //            mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
-    //            if (buttonPause.wasReleased())
-    //            {
-    //                resetNfcTag();
-    //            }
-    //            break;
-    //            
-    //        default:
-    //            /* nothing to do */
-    //            break;
-    //        }
-    //    }
-    //}
-    //DEBUG_PRINT_LN(F("BUTTON LONG PRESS"));
-    mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
-    readButtons();
+    AdminMenuOptions_t menuOption = ADMIN_MENU_FIRST_OPTION;
     
-    while (!buttonPause.wasReleased())
+    bool buttonPressed = false;
+    nfcConfigInProgess = true;
+    mp3Pause();
+    mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
+    
+    while(!buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
     {
-        readButtons();
+        mp3Loop();
+
+        if (buttonWasReleased(BUTTON_UP) && (menuOption < (ADMIN_MENU_LAST_OPTION)))
+        {
+            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption + 1);
+            buttonPressed = true;
+        }
+       else if (buttonWasReleased(BUTTON_DOWN) && (menuOption > ADMIN_MENU_FIRST_OPTION))
+        {
+            menuOption = (AdminMenuOptions_t)((uint8_t)menuOption - 1);
+            buttonPressed = true;
+        }
+         
+        switch(menuOption)
+        {
+        case ADMIN_MENU_RESET_NFC_TAG:
+            if (buttonPressed)
+            {
+                mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_RESET_TAG);
+                buttonPressed = false;
+            }
+            if (buttonWasReleased(BUTTON_PLAY))
+            {
+                resetNfcTag();
+                mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
+            }
+            break;
+            
+        default:
+            /* nothing to do */
+            break;
+        }
     }
-    resetNfcTag();
+    mp3PlayMp3FolderTrack(MP3_ABORT);
+    DEBUG_PRINT_LN(F("BUTTON LONG PRESS"));
+    nfcConfigInProgess = false;
 }
 
 
@@ -701,13 +719,13 @@ void setup(void)
     
     numTracksInFolder = mp3GetFolderTrackCount(folder.number);
 
-    pinMode(BUTTON_PAUSE_PIN, INPUT_PULLUP);
-    pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_PLAY_PIN, INPUT_PULLUP);
+    pinMode(BUTTON_UP_PIN,   INPUT_PULLUP);
     pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
     pinMode(BUTTON_NEXT_PIN, INPUT_PULLUP);
     pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
     pinMode(DF_PLAYER_BUSY_PIN, INPUT);
-    
+       
     /* NFC Leser init */
     SPI.begin();        // Init SPI bus
     mfrc522.PCD_Init(); // Init MFRC522
@@ -730,6 +748,7 @@ void loop(void)
         buttonHandler();
         delay(1);
     }
+
     mp3Pause();
     nfcHandler();
     playFolder();
