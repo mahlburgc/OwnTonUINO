@@ -17,10 +17,14 @@
  *  Changed by Christian Mahlburg
  *
  * TODO: 
- *  - status led for sleep timer
  *  - admin menu sleep timer configuration
  *  - modus sleep timer hinzufügen und sleep timer karte erstellen, kann dann eine Figur mit einer Uhr sein.
  *  - testen, ob nach button umbau noch alle funktionen gehen
+ *  - drücken von down und Play setzt auf ersten Track zurück
+ *  - main version und sub version 
+ *  - bug identifizieren, dass manchmal menuoptionen doppelt gesagt werden
+ *  - bug fix: wenn man admin menu verlässt und danach play drückt, spielt er nochmal den verlassen jingle, und danach den entsprechenden ordner der vorher aktiviert war
+ *  - unnötige Debugausgaben, TODOS und TBDs entfernen
  *
  ********************************************************************************
  * MIT License
@@ -63,11 +67,12 @@
 #define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define VERSION             4 /* if number is changed, device settings in eeprom will be reseted */
+#define GOLDEN_COOKIE       0xAFFEAFFE /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
 /* these presets will be used on device settings reset in eeprom */
-#define VOLUME_MIN_PRESET   0
-#define VOLUME_MAX_PRESET   15
-#define VOLUME_INIT_PRESET  6
-#define SLEEP_TIMER_MINUTES_PRESET  5
+#define VOL_MIN_PRESET   0
+#define VOL_MAX_PRESET   15
+#define VOL_INI_PRESET  6
+#define SLEEP_TIMER_MINUTES_PRESET  15
 
 /* Buttons */
 #define BUTTON_PLAY_PIN     A0
@@ -103,32 +108,66 @@
 
 #define SERIAL_BAUD         115200
 
-#define MAX_TRACKS_IN_FOLDER            255 /* from datasheet */
-#define MAX_FOLDER                      100
+/* DF PLAYER */
+#define DF_PLAYER_MAX_TRACKS_IN_FOLDER    255 /* from datasheet */
+#define DF_PLAYER_MAX_FOLDER              100
+#define DF_PLAYER_MAX_VOL                 30
 
 /*mp3 track number */
-#define MP3_STARTUP_SOUND                   500
-#define MP3_NEW_NFC_TAG                     300
-#define MP3_SELECT_FOLDER                   301
-#define MP3_SELECT_LISTEN_MODE              310
-#define MP3_LISTEN_MODE_ALBUM               312
-#define MP3_LISTEN_MODE_SHUFFLE             313
-#define MP3_LISTEN_MODE_AUDIO_BOOK          315
-#define MP3_LISTEN_MODE_ADMIN               316
-#define MP3_OWEH_DAS_HAT_LEIDER             401
-#define MP3_OK_ICH_HABE_DIE_KAR             400
-#define MP3_RESET_OK                        999
-#define MP3_ADMIN_MENU                      900
-#define MP3_ADMIN_MENU_RESET_TAG            901
-#define MP3_ADMIN_MENU_INSERT_TAG           800
-#define MP3_ADMIN_MENU_VOL_MAX              902
-#define MP3_ADMIN_MENU_VOL_MIN              903
-#define MP3_ADMIN_MENU_VOL_INI              904
-#define MP3_ADMIN_MENU_VOL_MAX_SELECTED     930
-#define MP3_ADMIN_MENU_VOL_MIN_SELECTED     931
-#define MP3_ADMIN_MENU_VOL_INI_SELECTED     932
-#define MP3_ADMIN_MENU_SLEEP_TIMER          908
-#define MP3_ABORT                           802
+#define MP3_INSERT_TAG                    300
+#define MP3_NEW_TAG                       301
+#define MP3_SELECT_MODE                   302
+#define MP3_SELECT_FOLDER                 303
+#define MP3_TAG_CONFIG_OK                 304
+#define MP3_TAG_CONFIG_ERROR              305
+
+#define MP3_MODE_ALBUM                    310
+#define MP3_MODE_SHUFFLE                  311
+#define MP3_MODE_AUDIO_BOOK               312
+#define MP3_MODE_ADMIN                    313
+#define MP3_MODE_LOCKED                   314
+
+#define MP3_STARTUP_SOUND                 500
+#define MP3_BEEP                          501
+
+#define MP3_ACTION_ABORT_INTRO            800
+#define MP3_ACTION_ABORT_OK               801
+#define MP3_NO                            802
+#define MP3_YES                           803
+#define MP3_OK                            804
+
+#define MP3_ADMIN_MENU_PINCODE            900
+#define MP3_ADMIN_MENU                    901
+#define MP3_ADMIN_MENU_CHOOSE_OPTION      902
+#define MP3_ADMIN_MENU_EXIT_INTRO         903
+#define MP3_ADMIN_MENU_EXIT_SELECTED      904
+
+#define MP3_CARD_RESET_INTRO              910
+
+#define MP3_VOL_MAX_INTRO                 920
+#define MP3_VOL_MAX_SELECTED              921
+#define MP3_VOL_MAX_OK                    922
+ 
+#define MP3_VOL_MIN_INTRO                 930
+#define MP3_VOL_MIN_SELECTED              931
+#define MP3_VOl_MIN_OK                    932
+
+#define MP3_VOL_INI_INTRO                 940
+#define MP3_VOL_INI_SELECTED              941
+#define MP3_VOL_INI_OK                    942
+
+#define MP3_SLEEP_TIMER_INTRO             950
+#define MP3_SLEEP_TIMER_SELECTED          951
+#define MP3_SLEEP_TIMER_OK                952
+
+#define MP3_SETTINGS_RESET_INTRO          960
+#define MP3_SETTINGS_RESET_SELECTED       961
+#define MP3_SETTINGS_RESET_OK             962
+
+/* advert track number*/
+#define ADV_BUTTONS_UNLOCKED              300
+#define ADV_BUTTONS_LOCKED                301
+
 
 #define DF_PLAYER_COM_DELAY 100 /* ms, delay to make shure that communication was finished with df player before continuing in program */
 
@@ -137,14 +176,18 @@
  * Example: If folder number 5 is in audio book mode, the last played track is stored at eeprom address 5.
  * This results in eeprom adress 0 is always empty, because folder numeration starts with 1 to 99.
  */
-#define EEPROM_DEVICE_SETTINGS_ADDR     MAX_FOLDER
+#define EEPROM_DEVICE_SETTINGS_ADDR     DF_PLAYER_MAX_FOLDER
 
+#define DO_NOT_WAIT     false
+#define WAIT            true
+
+#define IS_LISTENMODE(x) ((x == MODE_ALBUM) || (x == MODE_SHUFFLE) || (x == MODE_AUDIO_BOOK))
 
 /********************************************************************************
  * static memeber
  ********************************************************************************/
 
-typedef enum
+typedef enum : uint8_t
 {
     BUTTON_PLAY,
     BUTTON_UP,
@@ -154,39 +197,70 @@ typedef enum
     NR_OF_BUTTONS,    /* DO NOT USE AS BUTTON */
 } ButtonNr_t;
 
-typedef enum 
+typedef enum : uint8_t
 {
-    MODE_UNSET,       /* folder not configured */
-    MODE_ALBUM,       /* play whole folder in normal sequence */
-    MODE_SHUFFLE,     /* play whole folder in random sequence */
-    MODE_AUDIO_BOOK,  /* play whole folder in normal sequence from last playes track */
-    MODE_ADMIN,       /* admin mode */
-    NR_OF_MODES,      /* DO NOT USE AS MODE */
+    VOL_MIN,
+    VOL_MAX,
+    VOL_INI,
+    NR_OF_VOL_SETTINGS, /* DO NOT USE AS VOLUME SETTING */
+} VolumeSetting_t;
+    
+
+typedef enum  : uint8_t
+{
+    MODE_UNSET      = 0,                /* DO NOT USE AS MODE */
+    FIRST_MODE,                         /* DO NOT USE AS MODE */
+    MODE_ALBUM      = FIRST_MODE,       /* play whole folder in normal sequence */
+    MODE_SHUFFLE,                       /* play whole folder in random sequence */
+    MODE_AUDIO_BOOK,                    /* play whole folder in normal sequence from last playes track */
+    MODE_ADMIN,                         /* admin mode */
+    MODE_LOCKED,                        /* locked mode, buttons are locked */
+    LAST_MODE       = MODE_LOCKED,      /* DO NOT USE AS MODE */
+    NR_OF_MODES,                        /* DO NOT USE AS MODE */
 } FolderMode_t;
 
-typedef enum
+const uint16_t MP3_MODE_ARRAY[NR_OF_MODES - 1] =  /* -1 because mode unset is not a real mode */
+{ 
+    MP3_MODE_ALBUM, 
+    MP3_MODE_SHUFFLE, 
+    MP3_MODE_AUDIO_BOOK, 
+    MP3_MODE_ADMIN, 
+    MP3_MODE_LOCKED, 
+};
+
+typedef enum : uint8_t
 {
-    ADMIN_MENU_FIRST_OPTION     = 0,
-    ADMIN_MENU_RESET_NFC_TAG    = 0,
-    ADMIN_MENU_SET_VOL_MAX      = 1,
-    ADMIN_MENU_SET_VOL_MIN      = 2,
-    ADMIN_MENU_SET_VOL_INI      = 3,
-    ADMIN_MENU_SET_SLEEP_TIMER  = 4,
-    ADMIN_MENU_LAST_OPTION      = 4, /* DO NOT USE AS OPTION */
+    ADMIN_MENU_FIRST_OPTION     = 0,                           /* DO NOT USE AS OPTION */
+    ADMIN_MENU_RESET_NFC_TAG    = ADMIN_MENU_FIRST_OPTION,
+    ADMIN_MENU_SET_VOL_MAX,
+    ADMIN_MENU_SET_VOL_MIN,
+    ADMIN_MENU_SET_VOL_INI,
+    ADMIN_MENU_SET_SLEEP_TIMER,
+    ADMIN_MENU_SETTINGS_RESET,
+    ADMIN_MENU_LAST_OPTION      = ADMIN_MENU_SETTINGS_RESET,  /* DO NOT USE AS OPTION */
+    NR_OF_MENU_OPTIONS,                                       /* DO NOT USE AS OPTION */
 } AdminMenuOptions_t;
+    
+const uint16_t MP3_ADMIN_MENU_OPTIONS_ARRAY[NR_OF_MENU_OPTIONS] = 
+{ 
+    MP3_CARD_RESET_INTRO, 
+    MP3_VOL_MAX_INTRO, 
+    MP3_VOL_MIN_INTRO, 
+    MP3_VOL_INI_INTRO, 
+    MP3_SLEEP_TIMER_INTRO, 
+    MP3_SETTINGS_RESET_INTRO,
+};
 
 typedef struct 
 {
-    uint8_t      number;
+    uint8_t   number;
     FolderMode_t mode;
 } FolderSettings_t;
 
 typedef struct 
 {
     uint8_t version;
-    uint8_t volumeMin;
-    uint8_t volumeMax;
-    uint8_t volumeInit;
+    uint8_t volume[NR_OF_VOL_SETTINGS];
     uint8_t sleepTimerMinutes;
 } DeviceSettings_t;
 
@@ -201,7 +275,7 @@ typedef struct
 static SoftwareSerial mySoftwareSerial(DF_PLAYER_RX_PIN, DF_PLAYER_TX_PIN); // RX, TX
 static uint16_t numTracksInFolder;
 static uint16_t currentTrack = 1;
-static uint8_t queue[255];
+static uint8_t queue[DF_PLAYER_MAX_TRACKS_IN_FOLDER];
 static uint8_t volume;
 
 static FolderSettings_t folder;
@@ -218,7 +292,7 @@ static Button button[NR_OF_BUTTONS] =
 };
 
 /* helper array to ignore button release after long press */
-static bool buttonLongPressed[NR_OF_BUTTONS] = { false, false, false, false, false };
+static bool ignoreNextButtonRelease[NR_OF_BUTTONS] = { false, false, false, false, false };
 
 /* MFRC522 */
 MFRC522 mfrc522(MFRC522_SS_PIN, MFRC522_RST_PIN); 
@@ -228,12 +302,13 @@ byte sector = 1;
 byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
-static const uint32_t GOLDEN_COOKIE = 0xDEADBEEF; /* this cookie is used to identify known cards */
 static bool nfcConfigInProgess = false;
 
 /* sleep timer */
 static bool sleepTimerIsActive = false;
 static unsigned long sleepTimerActivationTime = 0;
+
+static bool buttonsLocked = false;
 
 /* foreward decalarations */
 static void nextTrack(void);
@@ -245,7 +320,7 @@ static void shuffleQueue(void);
 static void playFolder(void);
 static void writeSettingsToFlash(void);
 static void resetSettings(void);
-static void loadSettingsFromFlash(void);
+static void loadSettingsFromFlash(bool reset = false);
 static void playStartupSound(void);
 static void printDeviceSettings(void);
 static void adminMenu(void);
@@ -257,7 +332,7 @@ static void mp3Begin(void);
 static void mp3Loop(void);
 static void mp3PlayFolderTrack(uint8_t folder, uint16_t track);
 static uint16_t mp3GetFolderTrackCount(uint8_t folderNr);
-static void mp3PlayMp3FolderTrack(uint16_t track);
+static void mp3PlayMp3FolderTrack(uint16_t track, bool waitTillFinish = true);
 static uint16_t mp3GetTotalFolderCount(void);
 static uint8_t mp3GetVolume(void);
 
@@ -444,7 +519,7 @@ static void volumeUp(void)
 {
     DEBUG_TRACE;
     
-    if (volume < deviceSettings.volumeMax) 
+    if (volume < deviceSettings.volume[VOL_MAX]) 
     {
         volume++;
         mp3SetVolume(volume);
@@ -457,7 +532,7 @@ static void volumeDown(void)
 {
     DEBUG_TRACE;
     
-    if (volume > deviceSettings.volumeMin)
+    if (volume > deviceSettings.volume[VOL_MIN])
     {
         volume--;
         mp3SetVolume(volume);
@@ -468,27 +543,34 @@ static void volumeDown(void)
 
 static void buttonHandler(void)
 {
+    if (buttonsLocked)
+    {
+        return;
+    }
+        
     readButtons();
     
-    if (buttonIsPressed(BUTTON_DOWN) && buttonIsPressed(BUTTON_UP) && buttonIsPressed(BUTTON_PLAY))
+    if (allButtonsArePressed())
     {
         DEBUG_PRINT_LN(F("BUTTON PLAY UP DOWN PRESSED"));
         adminMenu();
-        playFolder();
     }
         
     
     if (buttonWasReleased(BUTTON_PLAY))
     {   
         DEBUG_PRINT_LN(F("BUTTON PLAY RELEASED"));
-        if (mp3IsPlaying())
+        if (IS_LISTENMODE(folder.mode))
         {
-            mp3Pause();
-        }
-        else
-        {
-            mp3Start();
-        }
+            if (mp3IsPlaying())
+            {
+                mp3Pause();
+            }
+            else
+            {
+                mp3Start();
+            }
+        }            
     } 
     
     if (buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
@@ -569,7 +651,7 @@ static void shuffleQueue(void)
     }
   
     /* fill queue with zeros */
-    for (uint8_t i = numTracksInFolder; i < MAX_TRACKS_IN_FOLDER; i++)
+    for (uint8_t i = numTracksInFolder; i < DF_PLAYER_MAX_TRACKS_IN_FOLDER; i++)
     {
         queue[i] = 0;
     }
@@ -629,7 +711,7 @@ static void playFolder(void)
 static void playStartupSound(void)
 {
     DEBUG_TRACE;
-    mp3PlayMp3FolderTrack(MP3_STARTUP_SOUND);
+    mp3PlayAdvertisement(MP3_STARTUP_SOUND);
 }
 
 static void playAdvertisement(uint16_t advertTrack)
@@ -762,6 +844,7 @@ static void sleepTimerDisable(void)
  ********************************************************************************/
 void setup(void)
 {
+    bool reset = false;
     uint32_t ADC_LSB = 0;
     uint32_t ADCSeed = 0;
 
@@ -774,19 +857,9 @@ void setup(void)
     randomSeed(ADCSeed); /* initialize random generator */
    
     Serial.begin(SERIAL_BAUD);
-    loadSettingsFromFlash();
-    /* DEBUG REMOVE THIS */
-    deviceSettings.sleepTimerMinutes = 1;
+    Serial.println();
+    Serial.println("Booting...");
     
-    printDeviceSettings();
-
-    volume = deviceSettings.volumeInit;
-
-    mp3Begin();
-    mp3SetVolume(volume);
-    
-    numTracksInFolder = mp3GetFolderTrackCount(folder.number);
-
     pinMode(BUTTON_PLAY_PIN, INPUT_PULLUP);
     pinMode(BUTTON_UP_PIN,   INPUT_PULLUP);
     pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
@@ -804,13 +877,35 @@ void setup(void)
         key.keyByte[i] = 0xFF;
     }
     
-    playStartupSound();
+    /* reset device settings on startup, if up down and play button is pressed */
+    readButtons();
+    if (allButtonsArePressed())
+    {
+        reset = true;
+    }
+    
+    loadSettingsFromFlash(reset);
+    volume = deviceSettings.volume[VOL_INI];
+    mp3Begin();
+    mp3SetVolume(volume);
+    numTracksInFolder = mp3GetFolderTrackCount(folder.number);
+    
+    if (reset == true)
+    {
+        mp3PlayMp3FolderTrack(MP3_SETTINGS_RESET_OK);
+    }
+    else
+    {
+        playStartupSound();
+    }
+        
+    printDeviceSettings();
     delay(200);
     playFolder();
 }
  
 void loop(void)
-{
+{    
     while(!mfrc522.PICC_IsNewCardPresent())
     {
         mp3Loop();
@@ -818,8 +913,6 @@ void loop(void)
         sleepTimerHandler();
         delay(1);
     }
-
-    mp3Pause();
+   
     nfcHandler();
-    playFolder();
 }

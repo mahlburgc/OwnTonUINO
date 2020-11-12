@@ -1,7 +1,10 @@
 static void mp3Start(void)
 {
-    mp3.start();
-    delay(DF_PLAYER_COM_DELAY);
+    if (!mp3IsPlaying())
+    {
+        mp3.start();
+        delay(DF_PLAYER_COM_DELAY);
+    }
 }
 
 static void mp3Pause(void)
@@ -60,13 +63,37 @@ static bool mp3IsPlaying(void)
   return !digitalRead(DF_PLAYER_BUSY_PIN);
 }
 
-static void mp3PlayMp3FolderTrack(uint16_t track)
+static void mp3PlayMp3FolderTrack(uint16_t track, bool waitTillFinish) /* default: waitTillFinish == true */
 {
     mp3.playMp3FolderTrack(track);
-    waitForTrackFinish();
+    if (waitTillFinish)
+    {
+        waitForTrackFinish();
+    }
+    else
+    {
+        delay(DF_PLAYER_COM_DELAY);
+    }
 }
 
 static uint8_t mp3GetVolume(void)
 {
     return mp3.getVolume();
-}    
+}
+
+static void mp3PlayAdvertisement(uint16_t track)
+{
+    if (mp3IsPlaying())
+    {
+        mp3.playAdvertisement(track);
+        waitForTrackFinish();
+    }
+    else
+    {
+        mp3Start();
+        delay(100);
+        mp3.playAdvertisement(track);
+        waitForTrackFinish();
+        mp3.pause();
+    }
+}

@@ -5,13 +5,13 @@ static void writeSettingsToFlash(void)
     EEPROM.put(EEPROM_DEVICE_SETTINGS_ADDR, deviceSettings);
 }
 
-static void loadSettingsFromFlash(void)
+static void loadSettingsFromFlash(bool reset)
 {
     DEBUG_TRACE;
     
     EEPROM.get(EEPROM_DEVICE_SETTINGS_ADDR, deviceSettings);
     
-    if (deviceSettings.version != VERSION)
+    if ((deviceSettings.version != VERSION) || (reset == true))
     {
         resetSettings();
     }
@@ -21,14 +21,13 @@ static void resetSettings(void)
 {
     DEBUG_TRACE;
     
-    deviceSettings.version            = VERSION;
-    deviceSettings.volumeMin          = VOLUME_MIN_PRESET;
-    deviceSettings.volumeMax          = VOLUME_MAX_PRESET;
-    deviceSettings.volumeInit         = VOLUME_INIT_PRESET;
-    deviceSettings.sleepTimerMinutes  = SLEEP_TIMER_MINUTES_PRESET;
+    deviceSettings.version           = VERSION;
+    deviceSettings.volume[VOL_MAX]   = VOL_MAX_PRESET;
+    deviceSettings.volume[VOL_MIN]   = VOL_MIN_PRESET;
+    deviceSettings.volume[VOL_INI]   = VOL_INI_PRESET;
+    deviceSettings.sleepTimerMinutes = SLEEP_TIMER_MINUTES_PRESET;
 
     writeSettingsToFlash();
-    mp3PlayMp3FolderTrack(MP3_RESET_OK);
 }
 
 static void printDeviceSettings(void)
@@ -37,13 +36,13 @@ static void printDeviceSettings(void)
     DEBUG_PRINT_LN(deviceSettings.version);
 
     DEBUG_PRINT(F("volume max: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeMax);
+    DEBUG_PRINT_LN(deviceSettings.volume[VOL_MAX]);
 
     DEBUG_PRINT(F("volume min: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeMin);
+    DEBUG_PRINT_LN(deviceSettings.volume[VOL_MIN]);
 
     DEBUG_PRINT(F("volume initial: "));
-    DEBUG_PRINT_LN(deviceSettings.volumeInit);
+    DEBUG_PRINT_LN(deviceSettings.volume[VOL_INI]);
 
     DEBUG_PRINT(F("sleep timer: "));
     DEBUG_PRINT_LN(deviceSettings.sleepTimerMinutes);

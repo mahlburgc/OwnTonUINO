@@ -9,13 +9,13 @@ static bool buttonWasReleased(ButtonNr_t buttonNr)
     //DEBUG_PRINT(F(" released: "));
     //DEBUG_PRINT(buttonState);
     //DEBUG_PRINT(F(", long pressed: "));
-    //DEBUG_PRINT_LN(buttonLongPressed[buttonNr]);
+    //DEBUG_PRINT_LN(ignoreNextButtonRelease[buttonNr]);
     
     if (buttonState)
     {        
-        if(buttonLongPressed[buttonNr] == true) /* ignore release if button up was pressed for long time */
+        if(ignoreNextButtonRelease[buttonNr] == true) /* ignore release if button up was pressed for long time or was used with isPressed */
         {
-            buttonLongPressed[buttonNr] = false;
+            ignoreNextButtonRelease[buttonNr] = false;
         }
         else
         {
@@ -29,10 +29,10 @@ static bool buttonPressedFor(ButtonNr_t buttonNr, uint32_t ms)
 {
     bool retVal = false;
     
-    /* avoid detecting more than one lon button press if button is pressed for very long time without release */
-    if (button[buttonNr].pressedFor(ms) && (buttonLongPressed[buttonNr] == false))
+    /* avoid detecting more than one long button press if button is pressed for very long time without release */
+    if (button[buttonNr].pressedFor(ms) && (ignoreNextButtonRelease[buttonNr] == false))
     {
-        buttonLongPressed[buttonNr] = true;
+        ignoreNextButtonRelease[buttonNr] = true;
         retVal = true;
     }
     return retVal;
@@ -55,3 +55,20 @@ static void readButtons(void)
         button[i].read();
     }
 }
+
+static bool allButtonsArePressed()
+{
+    bool retVal = false;
+    
+    if (buttonIsPressed(BUTTON_DOWN) && buttonIsPressed(BUTTON_UP) && buttonIsPressed(BUTTON_PLAY))
+    {
+        DEBUG_PRINT_LN(F("ALL BUTTONS ARE PRESSED!"));
+        ignoreNextButtonRelease[BUTTON_DOWN] = true;
+        ignoreNextButtonRelease[BUTTON_UP] = true;
+        ignoreNextButtonRelease[BUTTON_PLAY] = true;
+        retVal = true;
+    }
+    
+    return retVal;
+}
+        
