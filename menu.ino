@@ -110,7 +110,7 @@ static void adminMenu_setVolume(AdminMenuOptions_t menuOption)
             readButtons();
             mp3Loop();
             
-            if (buttonWasReleased(BUTTON_UP) && (volTemp < 30)) /* TODO MACRO */
+            if (buttonWasReleased(BUTTON_UP) && (volTemp < 30)) /*30 is max by datasheet TODO MACRO */
             {
                 volTemp++;                
             }

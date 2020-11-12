@@ -103,7 +103,7 @@
 
 #define SERIAL_BAUD         115200
 
-#define MAX_TRACKS_IN_FOLDER            255
+#define MAX_TRACKS_IN_FOLDER            255 /* from datasheet */
 #define MAX_FOLDER                      100
 
 /*mp3 track number */
