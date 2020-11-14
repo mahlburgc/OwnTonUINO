@@ -24,7 +24,7 @@ mp3/0911_max_volume.mp3|Maximale Lautstärke festlegen.
 mp3/0912_min_volume.mp3|Minimale Lautstärke festlegen.
 mp3/0913_init_volume.mp3|Lautstärke beim Start festlegen.
 mp3/0914_sleep_timer.mp3|Den Einschlaftimer konfigurieren.
-mp3/0915_settings_reset.mp3|Alle Einstellungen löschen.
+mp3/0915_settings_reset.mp3|Alle Einstellungen zurücksetzen.
 mp3/0930_max_volume_selected.mp3|Maximale Lautstärke wählen und mit der Pausetaste bestätigen.
 mp3/0931_min_volume_selected.mp3|Minimale Lautstärke wählen und mit der Pausetaste bestätigen.
 mp3/0932_init_volume_selected.mp3|Lautstärke beim Start wählen und mit der Pausetaste bestätigen.
@@ -33,7 +33,7 @@ mp3/0934_settings_reset_selected.mp3|Möchtest du wirklich alle Einstellungen zu
 mp3/0940_max_volume_ok.mp3|OK. Die maximale Lautstärke wurde neu konfiguriert.
 mp3/0941_min_volume_ok.mp3|OK. Die minimale Lautstärke wurde neu konfiguriert.
 mp3/0942_init_volume_ok.mp3|OK. Die Lautstärke beim Start wurde neu konfiguriert.
-mp3/0943_sleep_timer_ok.mp3|OK. Der Einschalftimer wurde neu konfiguriert.
+mp3/0943_sleep_timer_ok.mp3|OK. OK. Der Einschlaftimer wurde neu konfiguriert.
 mp3/0944_settings_reset_ok.mp3|OK. Alle Einstellungen wurden zurückgesetzt.
 
 advert/300_buttons_unlocked.mp3|Die Tasten sind nun entsperrt.

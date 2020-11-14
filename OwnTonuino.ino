@@ -25,6 +25,9 @@
  *  - bug identifizieren, dass manchmal menuoptionen doppelt gesagt werden
  *  - bug fix: wenn man admin menu verlässt und danach play drückt, spielt er nochmal den verlassen jingle, und danach den entsprechenden ordner der vorher aktiviert war
  *  - unnötige Debugausgaben, TODOS und TBDs entfernen
+ *  - Option Einschlaftimer ganz nach oben im Menü, da ab häufigsten verwendet
+ *  - Menü schneller durchklickbar machen (voicelines besser skippen)
+ *  - bug: wenn mann tasten entsperrt, nachdem der Sleeptimer abgelaufen ist, startet die Musik automatisch wieder
  *
  ********************************************************************************
  * MIT License
@@ -71,8 +74,8 @@
 /* these presets will be used on device settings reset in eeprom */
 #define VOL_MIN_PRESET   0
 #define VOL_MAX_PRESET   15
-#define VOL_INI_PRESET  6
-#define SLEEP_TIMER_MINUTES_PRESET  15
+#define VOL_INI_PRESET   6
+#define SLEEP_TIMER_MINUTES_PRESET  15 /* The number should be an integer divisible by 5 */
 
 /* Buttons */
 #define BUTTON_PLAY_PIN     A0
@@ -112,6 +115,8 @@
 #define DF_PLAYER_MAX_TRACKS_IN_FOLDER    255 /* from datasheet */
 #define DF_PLAYER_MAX_FOLDER              100
 #define DF_PLAYER_MAX_VOL                 30
+#define SLEEP_TIMER_MINUTES_MAX           60
+#define SLEEP_TIMER_MINUTES_INTERVAL      5 /* configuration interval ( 5 min, 10 min ...) */
 
 /*mp3 track number */
 #define MP3_INSERT_TAG                    300
@@ -324,6 +329,9 @@ static void loadSettingsFromFlash(bool reset = false);
 static void playStartupSound(void);
 static void printDeviceSettings(void);
 static void adminMenu(void);
+static void adminMenu_setSleepTimer(void);
+static void adminMenu_resetDeviceSettings(void);
+
 /* wrapper functions for DFMiniMp3 Player with delay */
 static void mp3Start(void);
 static void mp3Pause(void);
