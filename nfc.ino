@@ -1,4 +1,32 @@
-static void nfcHandler(void)
+/********************************************************************************
+ * @file    : nfc.ino
+ * @author  : Christian Mahlburg
+ * @date    : 07.11.2020
+ * @brief   : This program is forked by original development TonUINO V 2.1 
+ *            by Thorsten Voß.
+ *                   
+ *          _____         _____ _____ _____ _____
+ *         |_   _|___ ___|  |  |     |   | |     |
+ *           | | | . |   |  |  |-   -| | | |  |  |
+ *           |_| |___|_|_|_____|_____|_|___|_____|
+ *           TonUINO Version 2.1
+ *         
+ *           created by Thorsten Voß and licensed under GNU/GPL.
+ *           Information and contribution at https://tonuino.de.
+ *         
+ *           Changed by Christian Mahlburg and licensed under GNU/GPL.
+ *
+ ********************************************************************************/
+
+/********************************************************************************
+ * private methods
+ ********************************************************************************/
+/**
+ * @brief The nfc handler handles an nfc tag, if placed on the reader within the main loop. 
+ *        Reading the keycard for unlock the main menu and setup a tag within the main menu 
+ *        is handled seperately in the respective methods.
+ */
+ static void nfc_handler(void)
 {
     DEBUG_TRACE;
     
@@ -9,17 +37,17 @@ static void nfcHandler(void)
         return;
     }
     
-    nfcConfigInProgess = true;
+    skipNextTrack = true;
 
-    if (readNfcTag(&nfcTag) == true) 
+    if (nfc_readTag(&nfcTag) == true) 
     {
         if (nfcTag.cookie != GOLDEN_COOKIE)
         {
-            sleepTimerDisable();
+            sleepTimer_disable();
             
             /* configure new card */  
-            mp3PlayMp3FolderTrack(MP3_NEW_TAG);
-            nfcTag = setupNfcTag();
+            mp3_playMp3FolderTrack(MP3_NEW_TAG);
+            nfcTag = nfc_setupTag();
             if (IS_LISTENMODE(nfcTag.folderSettings.mode))
             {
                 folder = nfcTag.folderSettings;
@@ -44,7 +72,7 @@ static void nfcHandler(void)
                 buttonsLocked = !buttonsLocked;
                 DEBUG_PRINT(F("Buttons locked (0->unlocked, 1-> locked): "));
                 DEBUG_PRINT_LN(buttonsLocked);
-                mp3PlayAdvertisement(ADV_BUTTONS_UNLOCKED + buttonsLocked); /* 300 for buttonsLocked = false, 301 for buttonsLocked = true */             
+                mp3_playAdvertisement(ADV_BUTTONS_UNLOCKED + buttonsLocked); /* 300 for buttonsLocked = false, 301 for buttonsLocked = true */             
                 break;
                 
             default:
@@ -57,23 +85,24 @@ static void nfcHandler(void)
     mfrc522.PICC_HaltA();
     mfrc522.PCD_StopCrypto1();
     
-    nfcConfigInProgess = false;
+    skipNextTrack = false;
 }
-    
-static bool readNfcTag(NfcTagObject_t* nfcTag)
+
+/**
+ * @brief This method reads the actual nfc tag, write the tag informations to the given nfc tag object pointer 
+ *        and returns the read status.
+ */
+static bool nfc_readTag(NfcTagObject_t* nfcTag)
 {
     DEBUG_TRACE;
+    
+    ASSERT(nfcTag != NULL);
     
     MFRC522::PICC_Type mifareType;
     const uint8_t BUFFER_SIZE    = 18;
     uint8_t buffer[BUFFER_SIZE]  = { 0 };
     uint8_t bufferSizeRetVal     = BUFFER_SIZE;
     uint32_t tempCookie = 0;
-
-    if (nfcTag == NULL)
-    {
-        return false;
-    }
 
     /* show some details of the PICC */
     DEBUG_PRINT(F("Card UID:"));
@@ -140,7 +169,10 @@ static bool readNfcTag(NfcTagObject_t* nfcTag)
     return true;
 }
 
-static bool writeNfcTag(NfcTagObject_t nfcTag)
+/**
+ * @brief This method writes the given nfc tag informations to the placed tag.
+ */
+static bool nfc_writeTag(NfcTagObject_t nfcTag)
 {
     DEBUG_TRACE;
     
@@ -176,11 +208,11 @@ static bool writeNfcTag(NfcTagObject_t nfcTag)
     {
         DEBUG_PRINT(F("PCD_Authenticate() failed: "));
         DEBUG_PRINT_LN(mfrc522.GetStatusCodeName(status));
-        mp3PlayMp3FolderTrack(MP3_TAG_CONFIG_ERROR);
+        mp3_playMp3FolderTrack(MP3_TAG_CONFIG_ERROR);
         return false;
     }
 
-    // Write data to the block
+    /* write data to the block */
     DEBUG_PRINT(F("Writing data into block "));
     DEBUG_PRINT(blockAddr);
     DEBUG_PRINT_LN(F(" ..."));
@@ -198,28 +230,31 @@ static bool writeNfcTag(NfcTagObject_t nfcTag)
     {
         DEBUG_PRINT(F("MIFARE_Write() failed: "));
         DEBUG_PRINT_LN(mfrc522.GetStatusCodeName(status));
-        mp3PlayMp3FolderTrack(MP3_TAG_CONFIG_ERROR);
+        mp3_playMp3FolderTrack(MP3_TAG_CONFIG_ERROR);
         return false;
     }
     else
     {
-        mp3PlayMp3FolderTrack(MP3_TAG_CONFIG_OK);
+        mp3_playMp3FolderTrack(MP3_TAG_CONFIG_OK);
         return true;
     }
 }
 
-static NfcTagObject_t setupNfcTag(void)
+/**
+ * @brief This method is used to setup a new or a configured nfc tag.
+ */
+static NfcTagObject_t nfc_setupTag(void)
 {
     DEBUG_TRACE;
     
     FolderMode_t modeSelector = FIRST_MODE;
-    uint16_t folderCount = mp3GetTotalFolderCount();
+    uint16_t folderCount = mp3_getTotalFolderCount();
     uint16_t folderSelector = 1; /* can something between 1 and "number of folders" */
 
     NfcTagObject_t newNfcTag = 
     {
         .cookie = GOLDEN_COOKIE,
-        .version = VERSION,
+        .version = FW_VERSION,
         .folderSettings = 
         {
             .number = 0,
@@ -228,31 +263,31 @@ static NfcTagObject_t setupNfcTag(void)
     };
     
     /* setup listen mode or keycard nfc tag */
-    mp3PlayMp3FolderTrack(MP3_SELECT_MODE);
-    mp3PlayMp3FolderTrack(MP3_MODE_ARRAY[FIRST_MODE - 1], DO_NOT_WAIT);
+    mp3_playMp3FolderTrack(MP3_SELECT_MODE);
+    mp3_playMp3FolderTrack(MP3_MODE_ARRAY[FIRST_MODE - 1], DO_NOT_WAIT);
     
     DEBUG_PRINT_LN(modeSelector);
     
-    readButtons();
-    while (!buttonWasReleased(BUTTON_PLAY))
+    button_readAll();
+    while (!button_wasReleased(BUTTON_PLAY))
     {
-        readButtons();
-        mp3Loop();
+        button_readAll();
+        mp3_loop();
 
-        if (buttonWasReleased(BUTTON_UP) && (modeSelector < (LAST_MODE)))
+        if (button_wasReleased(BUTTON_UP) && (modeSelector < (LAST_MODE)))
         {
             modeSelector = modeSelector + 1;
             DEBUG_PRINT_LN(modeSelector);
         }
-        else if (buttonWasReleased(BUTTON_DOWN) && (modeSelector > FIRST_MODE))
+        else if (button_wasReleased(BUTTON_DOWN) && (modeSelector > FIRST_MODE))
         {
             modeSelector = modeSelector - 1;
             DEBUG_PRINT_LN(modeSelector);
         }
             
-        if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
+        if (button_wasReleased(BUTTON_UP) || button_wasReleased(BUTTON_DOWN))
         {
-            mp3PlayMp3FolderTrack(MP3_MODE_ARRAY[modeSelector - 1], DO_NOT_WAIT);
+            mp3_playMp3FolderTrack(MP3_MODE_ARRAY[modeSelector - 1], DO_NOT_WAIT);
         }   
     }
     
@@ -260,30 +295,30 @@ static NfcTagObject_t setupNfcTag(void)
     if (IS_LISTENMODE(modeSelector))
     {
         /* setup folder number */
-        mp3PlayMp3FolderTrack(MP3_SELECT_FOLDER);
-        mp3PlayMp3FolderTrack(folderSelector);
-        mp3PlayFolderTrack(folderSelector, 1);
+        mp3_playMp3FolderTrack(MP3_SELECT_FOLDER);
+        mp3_playMp3FolderTrack(folderSelector);
+        mp3_playFolderTrack(folderSelector, 1);
 
-        readButtons();
+        button_readAll();
 
-        while (!buttonWasReleased(BUTTON_PLAY))
+        while (!button_wasReleased(BUTTON_PLAY))
         {
-            readButtons();
-            mp3Loop();
+            button_readAll();
+            mp3_loop();
             
-            if (buttonWasReleased(BUTTON_UP) && (folderSelector < folderCount))
+            if (button_wasReleased(BUTTON_UP) && (folderSelector < folderCount))
             {
                 folderSelector++;
             }
-            else if (buttonWasReleased(BUTTON_DOWN) && (folderSelector > 1))
+            else if (button_wasReleased(BUTTON_DOWN) && (folderSelector > 1))
             {
                 folderSelector--;
             }
             
-            if (buttonWasReleased(BUTTON_UP) || buttonWasReleased(BUTTON_DOWN))
+            if (button_wasReleased(BUTTON_UP) || button_wasReleased(BUTTON_DOWN))
             {
-                mp3PlayMp3FolderTrack(folderSelector);
-                mp3PlayFolderTrack(folderSelector, 1); 
+                mp3_playMp3FolderTrack(folderSelector);
+                mp3_playFolderTrack(folderSelector, 1); 
             }
         }
     }
@@ -291,7 +326,7 @@ static NfcTagObject_t setupNfcTag(void)
     newNfcTag.folderSettings.number = folderSelector;
     newNfcTag.folderSettings.mode = modeSelector;
 
-    if (!writeNfcTag(newNfcTag))
+    if (!nfc_writeTag(newNfcTag))
     {
         newNfcTag.folderSettings.number = 0;
         newNfcTag.folderSettings.mode = MODE_UNSET;
@@ -300,20 +335,24 @@ static NfcTagObject_t setupNfcTag(void)
     return newNfcTag;
 }
 
-static void resetNfcTag(void)
+/**
+ * @brief This method is used by admin menu to reset a nfc tag. 
+ *        This means, that the tag becomes a new configuration with nfc_setupTag().
+ */
+static void nfc_resetTag(void)
 {    
     DEBUG_TRACE;
     
     NfcTagObject_t nfcTag;
     bool abort = false;
     
-    mp3PlayMp3FolderTrack(MP3_INSERT_TAG);
+    mp3_playMp3FolderTrack(MP3_INSERT_TAG);
     
     while(!mfrc522.PICC_IsNewCardPresent() && !abort)
     {
-        mp3Loop();
-        readButtons();
-        if (buttonPressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
+        mp3_loop();
+        button_readAll();
+        if (button_pressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
         {
             abort = true;
         }
@@ -325,13 +364,13 @@ static void resetNfcTag(void)
     {
         while(!mfrc522.PICC_ReadCardSerial())
         {
-            readButtons();
-            mp3Loop();
+            button_readAll();
+            mp3_loop();
             DEBUG_PRINT_LN(F("cannot read card"));
             delay(100);
         }
         
-        nfcTag = setupNfcTag();
+        nfcTag = nfc_setupTag();
         if (IS_LISTENMODE(nfcTag.folderSettings.mode))
         {
             folder = nfcTag.folderSettings;
@@ -339,18 +378,58 @@ static void resetNfcTag(void)
     }
     else
     {
-        mp3PlayMp3FolderTrack(MP3_ACTION_ABORT_OK);
+        mp3_playMp3FolderTrack(MP3_ACTION_ABORT_OK);
     }
     
     mfrc522.PICC_HaltA();
     mfrc522.PCD_StopCrypto1();
 }
 
+/**
+ * @brief This method is used while entering the admin menu to check if the keycard was placed onto the nfc reader.
+ */
+static bool checkForKeyCard(void)
+{
+    bool retVal = false;
+    NfcTagObject_t nfcTag;
+    
+    if (!mfrc522.PICC_IsNewCardPresent())
+    {
+        return retVal;
+    }
+    
+    if (!mfrc522.PICC_ReadCardSerial())
+    {
+        /* do nothing */
+    }
+    else if (!nfc_readTag(&nfcTag))
+    {
+        /* do nothing */
+    }
+    else if ((nfcTag.cookie == GOLDEN_COOKIE) && (nfcTag.folderSettings.mode == MODE_KEYCARD))
+    {
+        retVal = true;
+    }
+    
+    mfrc522.PICC_HaltA();
+    mfrc522.PCD_StopCrypto1();
+    
+    return retVal;
+}     
+
+/**
+ * @brief Helper method to pring array to terminal.
+ */
 void dump_byte_array(uint8_t* buffer, uint8_t bufferSize)
 {
+#ifdef DEBUG
     for (uint8_t i = 0; i < bufferSize; i++)
     {
         DEBUG_PRINT(buffer[i] < 0x10 ? " 0" : " ");
-        Serial.print(buffer[i], HEX);
+        DEBUG_PRINT_TWO_ARG(buffer[i], HEX);
     }
+#else
+    UNUSED(buffer);
+    UNUSED(bufferSize);
+#endif
 }

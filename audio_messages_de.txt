@@ -33,9 +33,7 @@ mp3/0942_init_volume_ok.mp3|OK. Die Lautstärke beim Start wurde neu konfigurier
 mp3/0943_sleep_timer_ok.mp3|OK. OK. Der Einschlaftimer wurde neu konfiguriert.
 mp3/0944_settings_reset_ok.mp3|OK. Alle Einstellungen wurden zurückgesetzt.
 
-advert/300_buttons_unlocked.mp3|Die Tasten sind nun entsperrt.
-advert/301_buttons_locked.mp3|Die Tasten sind nun gesperrt.
-
-
+advert/0300_buttons_unlocked.mp3|Die Tasten sind nun entsperrt.
+advert/0301_buttons_locked.mp3|Die Tasten sind nun gesperrt.
 
 
