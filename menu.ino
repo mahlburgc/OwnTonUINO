@@ -3,10 +3,6 @@ static void adminMenu(void)
     DEBUG_TRACE;
     
     AdminMenuOptions_t menuOption = ADMIN_MENU_FIRST_OPTION;
-    
-    mp3Pause();
-    sleepTimerDisable();
-    nfcConfigInProgess = true;
 
     mp3PlayMp3FolderTrack(MP3_ADMIN_MENU);
     mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_CHOOSE_OPTION);
@@ -67,7 +63,6 @@ static void adminMenu(void)
     }
     mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_EXIT_SELECTED);
     DEBUG_PRINT_LN(F("BUTTON LONG PRESS"));
-    nfcConfigInProgess = false;
 }
 
 static void adminMenu_resetNfcTag(void)
@@ -179,3 +174,129 @@ static void adminMenu_resetDeviceSettings(void)
         mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_CHOOSE_OPTION);
     }
 }
+
+static void enterAdminMenu(void)
+{   
+    DEBUG_TRACE;
+    
+    bool abort = false;
+    bool keyCardDetected = false;
+    ButtonNr_t pinCodeEntered[PIN_CODE_LENGTH] = {};
+    uint8_t pinCodeIndex = 0;
+    
+    mp3Pause();
+    sleepTimerDisable();
+    nfcConfigInProgess = true;
+    
+    mp3PlayMp3FolderTrack(MP3_ADMIN_MENU_PINCODE, DO_NOT_WAIT);
+    
+    /* read pincode from button input and keycard */
+    while (!keyCardDetected && (pinCodeIndex < PIN_CODE_LENGTH))
+    {
+        mp3Loop();
+        readButtons();
+        
+        if (checkForKeyCard() == true)
+        {
+            keyCardDetected = true;
+        }
+        else if (buttonWasPressed(BUTTON_DOWN))
+        {
+            pinCodeEntered[pinCodeIndex] = BUTTON_DOWN;
+            DEBUG_PRINT_LN(F("DOWN"));
+        }
+        else if (buttonWasPressed(BUTTON_UP))
+        {
+            pinCodeEntered[pinCodeIndex] = BUTTON_UP;
+            DEBUG_PRINT_LN(F("UP"));
+        }
+        else if (buttonWasPressed(BUTTON_PLAY))
+        {
+            pinCodeEntered[pinCodeIndex] = BUTTON_PLAY;
+            DEBUG_PRINT_LN(F("PLAY"));
+        }
+        
+        if (buttonWasPressed(BUTTON_DOWN) || buttonWasPressed(BUTTON_UP) || buttonWasPressed(BUTTON_PLAY))
+        {
+            DEBUG_PRINT_LN(F("INCREASE INDEX"));
+            pinCodeIndex++;
+            mp3PlayMp3FolderTrack(MP3_BEEP);
+        }
+    }
+
+        /* DEBUG REMOVE THIS */
+    for (uint8_t i = 0; (i < PIN_CODE_LENGTH); i++)
+    {
+        DEBUG_PRINT(F("entered pin code: "));
+        DEBUG_PRINT(pinCodeEntered[i]);
+        DEBUG_PRINT_LN();
+    }
+    DEBUG_PRINT(F("entered pin code pointer adress: "));
+    DEBUG_PRINT_LN((uint32_t)&pinCodeEntered);
+    
+    
+    
+    if (keyCardDetected || pinCompare(pinCodeEntered, PIN_CODE))
+    {
+        adminMenu();
+    }
+    else
+    {
+        mp3PlayMp3FolderTrack(MP3_PIN_CODE_WRONG);
+    }
+    
+    nfcConfigInProgess = false;
+}
+
+static bool pinCompare(const ButtonNr_t* enteredCode, const ButtonNr_t* pinCode)
+{
+    DEBUG_TRACE
+    
+    bool retVal = true;
+    
+    DEBUG_PRINT(F("entered pin code: "));
+
+    
+    for (uint8_t i = 0; (i < PIN_CODE_LENGTH) && (retVal == true); i++)
+    {
+        DEBUG_PRINT(*(enteredCode + i));
+        if (*(enteredCode + i) != *(pinCode + i))
+        {
+            retVal = false;
+        }
+    }
+    
+    DEBUG_PRINT(F(", pin code result (0 -> incorrect, 1-> correct): "));
+    DEBUG_PRINT_LN(retVal);
+    
+    return retVal;
+}
+
+static bool checkForKeyCard(void)
+{
+    bool retVal = false;
+    NfcTagObject_t nfcTag;
+    
+    if (!mfrc522.PICC_IsNewCardPresent())
+    {
+        return retVal;
+    }
+    
+    if (!mfrc522.PICC_ReadCardSerial())
+    {
+        /* do nothing */
+    }
+    else if (!readNfcTag(&nfcTag))
+    {
+        /* do nothing */
+    }
+    else if ((nfcTag.cookie == GOLDEN_COOKIE) && (nfcTag.folderSettings.mode == MODE_KEYCARD))  /* rename mode to MODE_KEYCARD and remove locked and admin */
+    {
+        retVal = true;
+    }
+    
+    mfrc522.PICC_HaltA();
+    mfrc522.PCD_StopCrypto1();
+    
+    return retVal;
+}     

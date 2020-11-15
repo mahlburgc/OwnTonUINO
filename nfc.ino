@@ -22,7 +22,6 @@ static void nfcHandler(void)
             nfcTag = setupNfcTag();
             if (IS_LISTENMODE(nfcTag.folderSettings.mode))
             {
-                
                 folder = nfcTag.folderSettings;
                 playFolder();
             }
@@ -40,14 +39,8 @@ static void nfcHandler(void)
                 folder = nfcTag.folderSettings;
                 playFolder();
                 break;
-            
-            case MODE_ADMIN:
-                mfrc522.PICC_HaltA();
-                mfrc522.PCD_StopCrypto1();
-                adminMenu();
-                break;
                 
-            case MODE_LOCKED:
+            case MODE_KEYCARD:
                 buttonsLocked = !buttonsLocked;
                 DEBUG_PRINT(F("Buttons locked (0->unlocked, 1-> locked): "));
                 DEBUG_PRINT_LN(buttonsLocked);
@@ -234,7 +227,7 @@ static NfcTagObject_t setupNfcTag(void)
         }
     };
     
-    /* setup listen mode or admin nfc tag */
+    /* setup listen mode or keycard nfc tag */
     mp3PlayMp3FolderTrack(MP3_SELECT_MODE);
     mp3PlayMp3FolderTrack(MP3_MODE_ARRAY[FIRST_MODE - 1], DO_NOT_WAIT);
     
@@ -348,6 +341,9 @@ static void resetNfcTag(void)
     {
         mp3PlayMp3FolderTrack(MP3_ACTION_ABORT_OK);
     }
+    
+    mfrc522.PICC_HaltA();
+    mfrc522.PCD_StopCrypto1();
 }
 
 void dump_byte_array(uint8_t* buffer, uint8_t bufferSize)

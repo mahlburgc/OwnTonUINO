@@ -4,8 +4,7 @@ mp3/0302_select_mode.mp3|OK. Wähle nun mit den Lautstärketasten den Wiedergabe
 mp3/0310_mode_album.mp3|Albummodus. Den kompletten Ordner wiedergeben
 mp3/0311_mode_party.mp3|Partymodus. Den Ordner zufällig wiedergeben.
 mp3/0312_mode_audio_book.mp3|Hörbuchmodus. Den Ordner wiedergeben und den Fortschritt speichern.
-mp3/0313_mode_admin.mp3|Adminmodus. Durch Auflegen der Karte wird das Adminmenü geöffnet.
-mp3/0314_mode_locked.mp3|Tasten sperren. Durch Auflegen der Karte können die Tasten gesperrt und entsperrt werden.
+mp3/0313_mode_keycard.mp3| Schlüsselkarte. Durch Auflegen der Karte können die Tasten gesperrt und das Adminmenü geöffnet werden.
 mp3/0320_tag config_ok.mp3|OK. Ich habe die Karte konfiguriert.
 mp3/0321_tag config_error.mp3|Oh weh! Das hat leider nicht geklappt!
 mp3/0800_insert_tag.mp3|Bitte lege nun die Karte auf!
@@ -18,7 +17,7 @@ mp3/0900_admin_menu.mp3|Willkommen im Admin Menü.
 mp3/0901_choose_action.mp3|Bitte wähle eine Funktion mit den Lautstärketasten aus und bestätige sie mit der Pausetaste!
 mp3/0902_admin_menu_exit_intro.mp3|Durch einen langen Druck auf die Pausetaste kannst du das Adminmenü verlassen.
 mp3/0903_admin_menu_exit_selected.mp3|OK. Das Adminmenü wird beendet.
-mp3/0904_admin_menu_pincode.mp3|Gib den Pincode mithilfe der Tasten ein, um das Adminmenü zu öffnen.
+mp3/0904_admin_menu_pincode_keycard.mp3|Gib den Pincode mithilfe der Tasten ein oder lege die Schlüsselkarte auf, um das Adminmenü zu öffnen.
 mp3/0910_card_reset.mp3|Eine Karte neu konfigurieren.
 mp3/0911_max_volume.mp3|Maximale Lautstärke festlegen.
 mp3/0912_min_volume.mp3|Minimale Lautstärke festlegen.

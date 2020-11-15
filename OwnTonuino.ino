@@ -125,12 +125,12 @@
 #define MP3_SELECT_FOLDER                 303
 #define MP3_TAG_CONFIG_OK                 304
 #define MP3_TAG_CONFIG_ERROR              305
+#define MP3_PIN_CODE_WRONG                MP3_TAG_CONFIG_ERROR
 
 #define MP3_MODE_ALBUM                    310
 #define MP3_MODE_SHUFFLE                  311
 #define MP3_MODE_AUDIO_BOOK               312
-#define MP3_MODE_ADMIN                    313
-#define MP3_MODE_LOCKED                   314
+#define MP3_MODE_KEYCARD                  313
 
 #define MP3_STARTUP_SOUND                 500
 #define MP3_BEEP                          501
@@ -218,9 +218,8 @@ typedef enum  : uint8_t
     MODE_ALBUM      = FIRST_MODE,       /* play whole folder in normal sequence */
     MODE_SHUFFLE,                       /* play whole folder in random sequence */
     MODE_AUDIO_BOOK,                    /* play whole folder in normal sequence from last playes track */
-    MODE_ADMIN,                         /* admin mode */
-    MODE_LOCKED,                        /* locked mode, buttons are locked */
-    LAST_MODE       = MODE_LOCKED,      /* DO NOT USE AS MODE */
+    MODE_KEYCARD,                       /* buttons can be locked / unlocked and admin menu can be entered */
+    LAST_MODE       = MODE_KEYCARD,     /* DO NOT USE AS MODE */
     NR_OF_MODES,                        /* DO NOT USE AS MODE */
 } FolderMode_t;
 
@@ -229,8 +228,7 @@ const uint16_t MP3_MODE_ARRAY[NR_OF_MODES - 1] =  /* -1 because mode unset is no
     MP3_MODE_ALBUM, 
     MP3_MODE_SHUFFLE, 
     MP3_MODE_AUDIO_BOOK, 
-    MP3_MODE_ADMIN, 
-    MP3_MODE_LOCKED, 
+    MP3_MODE_KEYCARD,
 };
 
 typedef enum : uint8_t
@@ -307,13 +305,16 @@ byte sector = 1;
 byte blockAddr = 4;
 byte trailerBlock = 7;
 MFRC522::StatusCode status;
-static bool nfcConfigInProgess = false;
+static bool nfcConfigInProgess = false; /* TODO rename because this is also used in admin menu and in pin code input */
 
 /* sleep timer */
 static bool sleepTimerIsActive = false;
 static unsigned long sleepTimerActivationTime = 0;
 
 static bool buttonsLocked = false;
+
+static const uint8_t PIN_CODE_LENGTH = 6;
+static const ButtonNr_t PIN_CODE[PIN_CODE_LENGTH] = { BUTTON_DOWN, BUTTON_PLAY, BUTTON_UP, BUTTON_UP, BUTTON_PLAY, BUTTON_DOWN };
 
 /* foreward decalarations */
 static void nextTrack(void);
@@ -331,6 +332,8 @@ static void printDeviceSettings(void);
 static void adminMenu(void);
 static void adminMenu_setSleepTimer(void);
 static void adminMenu_resetDeviceSettings(void);
+static bool unlockAdminMenu(void);
+
 
 /* wrapper functions for DFMiniMp3 Player with delay */
 static void mp3Start(void);
@@ -559,11 +562,11 @@ static void buttonHandler(void)
     readButtons();
     
     if (allButtonsArePressed())
-    {
+    {  
         DEBUG_PRINT_LN(F("BUTTON PLAY UP DOWN PRESSED"));
-        adminMenu();
+        enterAdminMenu();
+        playFolder();
     }
-        
     
     if (buttonWasReleased(BUTTON_PLAY))
     {   
@@ -844,8 +847,6 @@ static void sleepTimerDisable(void)
     digitalWrite(SLEEP_TIMER_LED_PIN, LOW);
     DEBUG_PRINT_LN(F("sleep timer disabled"));
 }
-        
-        
 
 /********************************************************************************
  * main program
