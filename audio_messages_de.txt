@@ -13,11 +13,9 @@ mp3/0802_action_aborted.mp3|OK. ich habe den Vorgang abgebrochen.
 mp3/0803_no.mp3|Nein.
 mp3/0804_yes.mp3|Ja.
 mp3/0805_ok.mp3|OK.
-mp3/0900_admin_menu.mp3|Willkommen im Admin Menü. 
-mp3/0901_choose_action.mp3|Bitte wähle eine Funktion mit den Lautstärketasten aus und bestätige sie mit der Pausetaste!
-mp3/0902_admin_menu_exit_intro.mp3|Durch einen langen Druck auf die Pausetaste kannst du das Adminmenü verlassen.
-mp3/0903_admin_menu_exit_selected.mp3|OK. Das Adminmenü wird beendet.
-mp3/0904_admin_menu_pincode_keycard.mp3|Gib den Pincode mithilfe der Tasten ein oder lege die Schlüsselkarte auf, um das Adminmenü zu öffnen.
+mp3/0900_admin_menu_pincode_keycard.mp3|Gib den Pincode mithilfe der Tasten ein oder lege die Schlüsselkarte auf, um das Adminmenü zu öffnen.
+mp3/0901_admin_menu.mp3|Willkommen im Adminmenü. Bitte wähle eine Funktion mit den Lautstärketasten aus und bestätige sie mit der Pausetaste. Durch einen langen Druck auf die Pausetaste kannst du das Adminmenü verlassen. 
+mp3/0902_admin_menu_exit_selected.mp3|OK. Das Adminmenü wird beendet.
 mp3/0910_card_reset.mp3|Eine Karte neu konfigurieren.
 mp3/0911_max_volume.mp3|Maximale Lautstärke festlegen.
 mp3/0912_min_volume.mp3|Minimale Lautstärke festlegen.

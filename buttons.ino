@@ -6,15 +6,13 @@ static bool buttonWasReleased(ButtonNr_t buttonNr)
     
     //DEBUG_PRINT(F("Button "));
     //DEBUG_PRINT(buttonNr);
-    //DEBUG_PRINT(F(" released: "));
-    //DEBUG_PRINT(buttonState);
-    //DEBUG_PRINT(F(", long pressed: "));
-    //DEBUG_PRINT_LN(ignoreNextButtonRelease[buttonNr]);
-    
+    //DEBUG_PRINT(F(" released!"));
+
     if (buttonState)
     {        
-        if(ignoreNextButtonRelease[buttonNr] == true) /* ignore release if button up was pressed for long time or was used with isPressed */
+        if(ignoreNextButtonRelease[buttonNr] == true) /* ignore release if button up was pressed for long time */
         {
+            DEBUG_PRINT_LN(F("this button release is ignored"));
             ignoreNextButtonRelease[buttonNr] = false;
         }
         else
@@ -56,6 +54,7 @@ static void readButtons(void)
     }
 }
 
+/* TODO clean function because if buttonWasReleased function is not called after this, its possible that button actions that should be registered are ignored */
 static bool allButtonsArePressed()
 {
     bool retVal = false;

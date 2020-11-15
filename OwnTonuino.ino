@@ -72,7 +72,7 @@
 #define VERSION             4 /* if number is changed, device settings in eeprom will be reseted */
 #define GOLDEN_COOKIE       0xAFFEAFFE /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
 /* these presets will be used on device settings reset in eeprom */
-#define VOL_MIN_PRESET   0
+#define VOL_MIN_PRESET   1
 #define VOL_MAX_PRESET   15
 #define VOL_INI_PRESET   6
 #define SLEEP_TIMER_MINUTES_PRESET  15 /* The number should be an integer divisible by 5 */
@@ -143,9 +143,7 @@
 
 #define MP3_ADMIN_MENU_PINCODE            900
 #define MP3_ADMIN_MENU                    901
-#define MP3_ADMIN_MENU_CHOOSE_OPTION      902
-#define MP3_ADMIN_MENU_EXIT_INTRO         903
-#define MP3_ADMIN_MENU_EXIT_SELECTED      904
+#define MP3_ADMIN_MENU_EXIT_SELECTED      902
 
 #define MP3_CARD_RESET_INTRO              910
 
@@ -231,14 +229,15 @@ const uint16_t MP3_MODE_ARRAY[NR_OF_MODES - 1] =  /* -1 because mode unset is no
     MP3_MODE_KEYCARD,
 };
 
+/* if the order of the menu options is changed, also the mp3 track array below (MP3_ADMIN_MENU_OPTIONS_ARRAY) must be reordered */
 typedef enum : uint8_t
 {
     ADMIN_MENU_FIRST_OPTION     = 0,                           /* DO NOT USE AS OPTION */
-    ADMIN_MENU_RESET_NFC_TAG    = ADMIN_MENU_FIRST_OPTION,
+    ADMIN_MENU_SET_SLEEP_TIMER  = ADMIN_MENU_FIRST_OPTION,
+    ADMIN_MENU_RESET_NFC_TAG,
     ADMIN_MENU_SET_VOL_MAX,
     ADMIN_MENU_SET_VOL_MIN,
     ADMIN_MENU_SET_VOL_INI,
-    ADMIN_MENU_SET_SLEEP_TIMER,
     ADMIN_MENU_SETTINGS_RESET,
     ADMIN_MENU_LAST_OPTION      = ADMIN_MENU_SETTINGS_RESET,  /* DO NOT USE AS OPTION */
     NR_OF_MENU_OPTIONS,                                       /* DO NOT USE AS OPTION */
@@ -246,11 +245,11 @@ typedef enum : uint8_t
     
 const uint16_t MP3_ADMIN_MENU_OPTIONS_ARRAY[NR_OF_MENU_OPTIONS] = 
 { 
+    MP3_SLEEP_TIMER_INTRO, 
     MP3_CARD_RESET_INTRO, 
     MP3_VOL_MAX_INTRO, 
     MP3_VOL_MIN_INTRO, 
     MP3_VOL_INI_INTRO, 
-    MP3_SLEEP_TIMER_INTRO, 
     MP3_SETTINGS_RESET_INTRO,
 };
 
@@ -281,8 +280,8 @@ static uint16_t currentTrack = 1;
 static uint8_t queue[DF_PLAYER_MAX_TRACKS_IN_FOLDER];
 static uint8_t volume;
 
-static FolderSettings_t folder;
-static DeviceSettings_t deviceSettings;
+static FolderSettings_t folder = { 0, MODE_UNSET };
+static DeviceSettings_t deviceSettings = {};
 
 /* Buttons */
 static Button button[NR_OF_BUTTONS] = 
@@ -391,9 +390,32 @@ public:
     
     static void OnPlayFinished(DfMp3_PlaySources source, uint16_t track)
     {
-        UNUSED(source);
-        UNUSED(track);
-        nextTrack();  
+        //DEBUG_TRACE
+        /* There is a problem in DFPlayer mini that sometimes a track finish call can be sent twice from dfplayer.
+         * This is a hardwarebug from the dfplayer and can not be solved clearly -> so the solution is to skip the track if the callback is called twice with same track number
+         * withing the first 200ms (the double callback is called round about 120 ms after the first callback, but it's necessary to steadily call the mp3.loop if music is playing.
+         * If a song should be played twice, it's possible if the song is longer than 0.2s ;) -> https://github.com/Makuna/DFMiniMp3/issues/34
+         */
+        uint32_t currentTime = millis();
+        static uint16_t lastTrackFinished = 0;
+        static uint32_t lastTrackFinishedTime = 0; 
+        const uint32_t PLAY_SAME_SONG_TWICE_TIMEOUT = 200 /* ms */;
+        
+        /* check if this function call is valid or not (not valid if callback is triggered twice from dfplayer mini) */
+        if ((currentTime > (lastTrackFinishedTime + PLAY_SAME_SONG_TWICE_TIMEOUT)) || (track != lastTrackFinished))
+        {
+            //DEBUG_PRINT_LN(F("valid callback, function call is proceed"));
+            lastTrackFinished = track;
+            lastTrackFinishedTime = millis();
+        }
+        else
+        {
+            //DEBUG_PRINT(F("invalid callback, skip double invocation within ms: "));
+            //DEBUG_PRINT_LN(currentTime - lastTrackFinishedTime);
+            return;
+        }
+        
+        nextTrack();
     }
     
     static void OnPlaySourceOnline(DfMp3_PlaySources source)
@@ -434,17 +456,16 @@ static void nextTrack(void)
             currentTrack = currentTrack + 1;
             mp3PlayFolderTrack(folder.number, currentTrack);
             DEBUG_PRINT(F("album mode -> next track: "));
-            DEBUG_PRINT_LN(currentTrack);
-            DEBUG_PRINT(F("folder: "));
+            DEBUG_PRINT(currentTrack);
+            DEBUG_PRINT(F(", folder: "));
             DEBUG_PRINT_LN(folder.number);
         }
         else
         {
-            DEBUG_PRINT(F("album mode -> end"));
+            DEBUG_PRINT_LN(F("album mode -> end"));
         }
     }
-    
-    if (folder.mode == MODE_SHUFFLE)
+    else if (folder.mode == MODE_SHUFFLE)
     {
         if (currentTrack < numTracksInFolder)
         {
@@ -460,8 +481,7 @@ static void nextTrack(void)
         }
         mp3PlayFolderTrack(folder.number, queue[currentTrack - 1]);
     }
-
-    if (folder.mode == MODE_AUDIO_BOOK)
+    else if (folder.mode == MODE_AUDIO_BOOK)
     {
         if (currentTrack < numTracksInFolder)
         {
@@ -561,7 +581,7 @@ static void buttonHandler(void)
         
     readButtons();
     
-    if (allButtonsArePressed())
+    if (buttonIsPressed(BUTTON_DOWN) && buttonIsPressed(BUTTON_UP) && buttonIsPressed(BUTTON_PLAY))
     {  
         DEBUG_PRINT_LN(F("BUTTON PLAY UP DOWN PRESSED"));
         enterAdminMenu();
@@ -725,28 +745,6 @@ static void playStartupSound(void)
     mp3PlayAdvertisement(MP3_STARTUP_SOUND);
 }
 
-static void playAdvertisement(uint16_t advertTrack)
-{
-    DEBUG_TRACE;
-    
-    if (mp3IsPlaying())
-    {
-        mp3.playAdvertisement(advertTrack);
-        waitForTrackFinish();
-        delay(50); /* delay for dfplayer to start the interrupted track before continuing in program */
-    }
-    else
-    {
-        /* TBD if it's realy necessary to play advert tracks if music is not playing (therefore mp3 folder is usable)
-         * possible solution is to add same mp3 files into advert dir and mp3 dir on sd card an call mp3.playMp3FolderTrack(advertTrack); here
-         */
-        mp3Start();
-        mp3.playAdvertisement(advertTrack);
-        waitForTrackFinish();
-        mp3Pause();
-    }
-}
-
 static void waitForTrackFinish(void)
 {
     DEBUG_TRACE;
@@ -897,15 +895,14 @@ void setup(void)
     volume = deviceSettings.volume[VOL_INI];
     mp3Begin();
     mp3SetVolume(volume);
-    numTracksInFolder = mp3GetFolderTrackCount(folder.number);
-    
+
     if (reset == true)
     {
         mp3PlayMp3FolderTrack(MP3_SETTINGS_RESET_OK);
     }
     else
     {
-        playStartupSound();
+        mp3PlayMp3FolderTrack(MP3_STARTUP_SOUND);
     }
         
     printDeviceSettings();
@@ -922,6 +919,7 @@ void loop(void)
         sleepTimerHandler();
         delay(1);
     }
-   
+    
+    DEBUG_PRINT_LN(F("leaving main loop ..."));
     nfcHandler();
 }
