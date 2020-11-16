@@ -212,6 +212,7 @@ static void adminMenu_enter(void)
     mp3_pause();
     sleepTimer_disable();
     skipNextTrack = true;
+    ambientLed_disable();
     
     mp3_playMp3FolderTrack(MP3_ADMIN_MENU_PINCODE, DO_NOT_WAIT);
     

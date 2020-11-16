@@ -33,6 +33,7 @@
 #include <MFRC522.h>
 #include <SPI.h>
 #include <SoftwareSerial.h>
+#include <FastLED.h>
 
 /********************************************************************************
  * defines
@@ -64,6 +65,11 @@
 #define DF_PLAYER_BUSY_PIN   4
 #define OPEN_ANALOG_PIN      A7  /* ADC, used for random number generation */
 #define SLEEP_TIMER_LED_PIN  A5  /* LEDs */
+#define WS2812B_LED_DATA_PIN 5  /* same as A6 */
+
+/* WS2812B Ambient LEDs */
+#define WS2812B_NR_OF_LEDS   2
+#define WB2812B_BRIGHTNESS   200
 
 /* DEBUG tools */
 #ifdef  DEBUG
@@ -250,6 +256,11 @@ MFRC522::StatusCode status                           = MFRC522::STATUS_OK;
 static FolderSettings_t folder                       = { 0, MODE_UNSET };
 static DeviceSettings_t deviceSettings               = {};
 
+/* WB2812B Ambient LEDs */
+CRGB ambientLeds[WS2812B_NR_OF_LEDS]                 = {};
+static bool ambientLedEnabled                        = false;
+
+
 /* Buttons */
 static Button button[NR_OF_BUTTONS]                  = { BUTTON_PLAY_PIN, BUTTON_UP_PIN, BUTTON_DOWN_PIN, BUTTON_NEXT_PIN, BUTTON_PREV_PIN };
 static bool ignoreNextButtonRelease[NR_OF_BUTTONS]   = { false, false, false, false, false };
@@ -323,6 +334,9 @@ static bool button_allReleased(void);
 static void sleepTimer_handler(void);
 static void sleepTimer_enable(void);
 static void sleepTimer_disable(void);
+
+/* WS2812B ambient LED */
+static void ambientLed_handler(void);
 
 /* DEBUG */
 #ifdef DEBUG
@@ -731,6 +745,46 @@ static void buttonHandler(void)
     }
 }
 
+static void ambientLed_handler(void)
+{
+    static uint8_t color = random(0, 0xFF);;
+    static uint8_t counter = 0;
+    
+    if (mp3_isPlaying())
+    {
+        ambientLedEnabled = true;
+        for (uint8_t i = 0; i < WS2812B_NR_OF_LEDS; i++)
+        {
+            ambientLeds[i].setHSV(color, 255, 255);
+        }
+        FastLED.show();
+        
+        counter++;
+        if (counter >= 10)
+        {
+            color++; /* if overflowing, color starts from 0 */
+            counter = 0;
+        }
+    }
+    else
+    {
+        ambientLed_disable();
+    }
+}
+
+static void ambientLed_disable(void)
+{
+    if (ambientLedEnabled)
+    { 
+        for (uint8_t i = 0; i < WS2812B_NR_OF_LEDS; i++)
+        {
+            ambientLeds[i] = CRGB::Black;
+        }
+        FastLED.show();
+        ambientLedEnabled = false;
+    }
+}    
+
 /********************************************************************************
  * main program
  ********************************************************************************/
@@ -762,6 +816,17 @@ void setup(void)
     pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
     pinMode(SLEEP_TIMER_LED_PIN, OUTPUT);
     pinMode(DF_PLAYER_BUSY_PIN, INPUT_PULLUP);
+    
+    /* WB2812B Ambient LEDs */
+    FastLED.addLeds<WS2812B, WS2812B_LED_DATA_PIN, RGB>(ambientLeds, WS2812B_NR_OF_LEDS);
+    FastLED.setBrightness(WB2812B_BRIGHTNESS);
+    
+    /* DEBUG REMOVE THIS */
+    // for (uint8_t i = 0; i < WS2812B_NR_OF_LEDS; i++)
+    // {
+        // ambientLeds[i].setHSV(127, 220, 190);
+    // }
+    // FastLED.show();
        
     /* NFC reader init */
     SPI.begin();
@@ -818,6 +883,7 @@ void loop(void)
         mp3_loop();
         buttonHandler();
         sleepTimer_handler();
+        ambientLed_handler();
         delay(1);
     }
     nfc_handler();
