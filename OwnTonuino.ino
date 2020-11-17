@@ -17,6 +17,7 @@
  *           Changed by Christian Mahlburg and licensed under GNU/GPL.
  *
  *  TODO:
+ *  - make ambient light switchable on/off in admin menu
  * (- if a keycard is put on the player and there is no track playing, short parts of the
  *    track are played because music must be enabled to play advertisement 
  *    -> replace voice lines with red indicator led -> so the whole firmware does
@@ -258,8 +259,7 @@ static DeviceSettings_t deviceSettings               = {};
 
 /* WB2812B Ambient LEDs */
 CRGB ambientLeds[WS2812B_NR_OF_LEDS]                 = {};
-static bool ambientLedEnabled                        = false;
-
+static uint8_t color                                 = 0;
 
 /* Buttons */
 static Button button[NR_OF_BUTTONS]                  = { BUTTON_PLAY_PIN, BUTTON_UP_PIN, BUTTON_DOWN_PIN, BUTTON_NEXT_PIN, BUTTON_PREV_PIN };
@@ -747,12 +747,10 @@ static void buttonHandler(void)
 
 static void ambientLed_handler(void)
 {
-    static uint8_t color = random(0, 0xFF);;
     static uint8_t counter = 0;
     
     if (mp3_isPlaying())
     {
-        ambientLedEnabled = true;
         for (uint8_t i = 0; i < WS2812B_NR_OF_LEDS; i++)
         {
             ambientLeds[i].setHSV(color, 255, 255);
@@ -766,24 +764,7 @@ static void ambientLed_handler(void)
             counter = 0;
         }
     }
-    else
-    {
-        ambientLed_disable();
-    }
 }
-
-static void ambientLed_disable(void)
-{
-    if (ambientLedEnabled)
-    { 
-        for (uint8_t i = 0; i < WS2812B_NR_OF_LEDS; i++)
-        {
-            ambientLeds[i] = CRGB::Black;
-        }
-        FastLED.show();
-        ambientLedEnabled = false;
-    }
-}    
 
 /********************************************************************************
  * main program
@@ -816,17 +797,6 @@ void setup(void)
     pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
     pinMode(SLEEP_TIMER_LED_PIN, OUTPUT);
     pinMode(DF_PLAYER_BUSY_PIN, INPUT_PULLUP);
-    
-    /* WB2812B Ambient LEDs */
-    FastLED.addLeds<WS2812B, WS2812B_LED_DATA_PIN, RGB>(ambientLeds, WS2812B_NR_OF_LEDS);
-    FastLED.setBrightness(WB2812B_BRIGHTNESS);
-    
-    /* DEBUG REMOVE THIS */
-    // for (uint8_t i = 0; i < WS2812B_NR_OF_LEDS; i++)
-    // {
-        // ambientLeds[i].setHSV(127, 220, 190);
-    // }
-    // FastLED.show();
        
     /* NFC reader init */
     SPI.begin();
@@ -852,14 +822,32 @@ void setup(void)
 
     if (reset == true)
     {
-        mp3_playMp3FolderTrack(MP3_SETTINGS_RESET_OK);
+        mp3_playMp3FolderTrack(MP3_SETTINGS_RESET_OK, DO_NOT_WAIT);
     }
     else
     {
-        mp3_playMp3FolderTrack(MP3_STARTUP_SOUND);
+        mp3_playMp3FolderTrack(MP3_STARTUP_SOUND, DO_NOT_WAIT);
+    }
+    
+    /* WB2812B Ambient LEDs */
+    FastLED.addLeds<WS2812B, WS2812B_LED_DATA_PIN, RGB>(ambientLeds, WS2812B_NR_OF_LEDS);
+    FastLED.setBrightness(0);
+    color = random(0, 0xFF);
+    
+    for (uint8_t i = 0; i < WS2812B_NR_OF_LEDS; i++)
+    {
+        ambientLeds[i].setHSV(color, 255, 255);
+    }
+    
+    for (uint8_t i = 0; i < WB2812B_BRIGHTNESS; i++)
+    {
+        FastLED.setBrightness(i);
+        FastLED.show();
+        delay(8);
     }
     
     settings_print();
+    while(mp3_isPlaying()); /* wait till startup sound is finished */
     delay(STARTUP_DELAY);
     playFolder();
     

@@ -38,7 +38,6 @@
     }
     
     skipNextTrack = true;
-    ambientLed_disable();
 
     if (nfc_readTag(&nfcTag) == true) 
     {
