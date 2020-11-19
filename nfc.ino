@@ -28,11 +28,13 @@
  */
  static void nfc_handler(void)
 {
-    DEBUG_TRACE;
-    
     NfcTagObject_t nfcTag; /* my nfc object, e.g. nfc card or sticker */
     
-    if (!mfrc522.PICC_ReadCardSerial())
+    if (!mfrc522.PICC_IsNewCardPresent())
+    {
+        return;
+    }
+    else if (!mfrc522.PICC_ReadCardSerial())
     {
         return;
     }
@@ -44,6 +46,7 @@
         if (nfcTag.cookie != GOLDEN_COOKIE)
         {
             sleepTimer_disable();
+            FastLED.showColor(CRGB::White);
             
             /* configure new card */  
             mp3_playMp3FolderTrack(MP3_NEW_TAG);
@@ -53,6 +56,8 @@
                 folder = nfcTag.folderSettings;
                 playFolder();
             }
+            FastLED.show();
+
         }
         else
         {
@@ -70,9 +75,10 @@
                 
             case MODE_KEYCARD:
                 buttonsLocked = !buttonsLocked;
+                ambientLed_keylockAnimation();
                 DEBUG_PRINT(F("Buttons locked (0->unlocked, 1-> locked): "));
                 DEBUG_PRINT_LN(buttonsLocked);
-                mp3_playAdvertisement(ADV_BUTTONS_UNLOCKED + buttonsLocked); /* 300 for buttonsLocked = false, 301 for buttonsLocked = true */             
+                //mp3_playAdvertisement(ADV_BUTTONS_UNLOCKED + buttonsLocked); /* 300 for buttonsLocked = false, 301 for buttonsLocked = true */             
                 break;
                 
             default:
