@@ -213,6 +213,7 @@ static void adminMenu_enter(void)
     button_readAll();
     while (!button_allReleased())
     {
+        mp3_loop();
         button_readAll();
     }
     
@@ -254,6 +255,14 @@ static void adminMenu_enter(void)
     else
     {
         mp3_playMp3FolderTrack(MP3_PIN_CODE_WRONG);
+    }
+    
+    /* wait for all buttons are released before return to mail loop */
+    button_readAll();
+    while (!button_allReleased())
+    {
+        mp3_loop();
+        button_readAll();
     }
     
     FastLED.show();

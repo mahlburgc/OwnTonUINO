@@ -28,9 +28,8 @@
 static bool button_wasReleased(ButtonNr_t buttonNr)
 {
     bool retVal = false;
-    bool buttonState = button[buttonNr].wasReleased();
 
-    if (buttonState)
+    if (button[buttonNr].wasReleased())
     {        
         if(ignoreNextButtonRelease[buttonNr] == true) /* ignore release if button up was pressed for long time */
         {
@@ -46,19 +45,21 @@ static bool button_wasReleased(ButtonNr_t buttonNr)
 }
 
 /**
- * @brief Check if button was for an amount of millis. Next button long press can just be detected 
- *        if button was released before and button_wasReleased() method was called.
+ * @brief Check if button was pressed for an amount of millis. 
  */
 static bool button_pressedFor(ButtonNr_t buttonNr, uint32_t ms)
 {
     bool retVal = false;
+    static uint32_t lastLongPressDetect[NR_OF_BUTTONS] = { 0 };
+    uint32_t currentTime = millis();
     
-    /* avoid detecting more than one long button press if button is pressed for very long time without release */
-    if (button[buttonNr].pressedFor(ms) && (ignoreNextButtonRelease[buttonNr] == false))
+    if (button[buttonNr].pressedFor(ms) && (currentTime > (lastLongPressDetect[buttonNr] + ms)))
     {
+        lastLongPressDetect[buttonNr] = currentTime;
         ignoreNextButtonRelease[buttonNr] = true;
         retVal = true;
     }
+    
     return retVal;
 }
 
