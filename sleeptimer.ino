@@ -33,7 +33,7 @@ static void sleepTimer_handler(void)
     if (sleepTimerIsActive)
     {
         currentTime = millis();
-        sleepTime = sleepTimerActivationTime + ((unsigned long)deviceSettings.sleepTimerMinutes  * 6000); /* x 60000 converts form minutes to ms, DEBUG CHANGED TO 6000 */
+        sleepTime = sleepTimerActivationTime + ((unsigned long)deviceSettings.sleepTimerMinutes  * 60000); /* x 60000 converts form minutes to ms */
         
 #ifdef DEBUG
         EVERY_N_MILLISECONDS(1000)
