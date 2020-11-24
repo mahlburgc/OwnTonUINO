@@ -32,14 +32,7 @@ static void adminMenu_main(void)
     bool playMenuOption = true; /* used to play menu option track on first loop and if leaving submenu */
 
     mp3_playMp3FolderTrack(MP3_ADMIN_MENU, DO_NOT_WAIT);
-    delay(500);
-        
-    /* as long as intro is playing, it's possible to skip the intro with button up, down or play */
-    button_readAll();
-    while (!button_wasReleased(BUTTON_UP) && !button_wasReleased(BUTTON_DOWN) && !button_wasReleased(BUTTON_PLAY) && mp3_isPlaying())
-    {
-        button_readAll();
-    }
+    skipMp3WithButtonPress();
    
     button_readAll();
     while(!button_pressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
@@ -249,10 +242,11 @@ static void adminMenu_enter(void)
         if (button_wasReleased(BUTTON_DOWN) || button_wasReleased(BUTTON_UP) || button_wasReleased(BUTTON_PLAY))
         {
             pinCodeIndex++;
-            mp3_playMp3FolderTrack(MP3_BEEP);
+            mp3_playMp3FolderTrack(MP3_BEEP, DO_NOT_WAIT);
         }
     }
     
+    mp3_waitForTrackFinish(); /* wait for last button press sound is finished */
     if (keyCardDetected || adminMenu_pinCompare(pinCodeEntered, PIN_CODE))
     {
         adminMenu_main();

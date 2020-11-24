@@ -888,6 +888,18 @@ static void ambientLed_keylockAnimation(void) /* blocking mode */
     FastLED.show();
 }
 
+static void skipMp3WithButtonPress(void)
+{
+    delay(100);
+        
+    /* as long as music is playing, it's possible to skip it with button up, down or play */
+    button_readAll();
+    while (!button_wasReleased(BUTTON_UP) && !button_wasReleased(BUTTON_DOWN) && !button_wasReleased(BUTTON_PLAY) && mp3_isPlaying())
+    {
+        mp3_loop();
+        button_readAll();
+    }
+}
         
 
 /********************************************************************************
