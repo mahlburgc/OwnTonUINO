@@ -188,7 +188,7 @@ static uint16_t mp3_getFolderTrackCount(uint8_t folderNr)
 
 /**
  * @brief Get the total number of folders on the sc-card.
- *        TBD: What is the thid offset folder?
+ *        TBD: What is the third offset folder?
  */
 static uint16_t mp3_getTotalFolderCount(void)
 {

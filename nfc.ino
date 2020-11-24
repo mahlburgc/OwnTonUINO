@@ -50,6 +50,7 @@
             
             /* configure new card */  
             mp3_playMp3FolderTrack(MP3_NEW_TAG);
+            skipMp3WithButtonPress();
             nfcTag = nfc_setupTag();
             if (IS_LISTENMODE(nfcTag.folderSettings.mode))
             {
@@ -270,10 +271,13 @@ static NfcTagObject_t nfc_setupTag(void)
     };
     
     /* setup listen mode or keycard nfc tag */
-    mp3_playMp3FolderTrack(MP3_SELECT_MODE);
+    mp3_playMp3FolderTrack(MP3_SELECT_MODE, DO_NOT_WAIT);
+    skipMp3WithButtonPress();
     mp3_playMp3FolderTrack(MP3_MODE_ARRAY[FIRST_MODE - 1], DO_NOT_WAIT);
     
     DEBUG_PRINT_LN(modeSelector);
+    DEBUG_PRINT(F("total folder count: "));
+    DEBUG_PRINT(folderCount);
     
     button_readAll();
     while (!button_wasReleased(BUTTON_PLAY))
@@ -302,8 +306,10 @@ static NfcTagObject_t nfc_setupTag(void)
     if (IS_LISTENMODE(modeSelector))
     {
         /* setup folder number */
-        mp3_playMp3FolderTrack(MP3_SELECT_FOLDER);
-        mp3_playMp3FolderTrack(folderSelector);
+        mp3_playMp3FolderTrack(MP3_SELECT_FOLDER, DO_NOT_WAIT);
+        skipMp3WithButtonPress();
+        mp3_playMp3FolderTrack(folderSelector, DO_NOT_WAIT);
+        skipMp3WithButtonPress();
         mp3_playFolderTrack(folderSelector, 1);
 
         button_readAll();
@@ -324,8 +330,9 @@ static NfcTagObject_t nfc_setupTag(void)
             
             if (button_wasReleased(BUTTON_UP) || button_wasReleased(BUTTON_DOWN))
             {
-                mp3_playMp3FolderTrack(folderSelector);
-                mp3_playFolderTrack(folderSelector, 1); 
+                mp3_playMp3FolderTrack(folderSelector, DO_NOT_WAIT);
+                skipMp3WithButtonPress();
+                mp3_playFolderTrack(folderSelector, 1);
             }
         }
     }
@@ -353,7 +360,7 @@ static void nfc_resetTag(void)
     NfcTagObject_t nfcTag;
     bool abort = false;
     
-    mp3_playMp3FolderTrack(MP3_INSERT_TAG);
+    mp3_playMp3FolderTrack(MP3_INSERT_TAG, DO_NOT_WAIT);
     
     while(!mfrc522.PICC_IsNewCardPresent() && !abort)
     {
