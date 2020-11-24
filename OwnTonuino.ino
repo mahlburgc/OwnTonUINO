@@ -18,13 +18,9 @@
  *
  *  TODO:
  *  - make ambient light switchable on/off in admin menu
- * (- if a keycard is put on the player and there is no track playing, short parts of the
- *    track are played because music must be enabled to play advertisement 
- *    -> replace voice lines with red indicator led -> so the whole firmware does
- *       not use advertisement 
  *  - think about lock also new cards if keycard is used to lock buttons
- *  - more leds for higher brightness
  *  - print led configuration (number of leds, global max led brightness)
+ *  - print button configuration
  *  - add power observation from led library
  *  - add sound when new known card is put on the box
  *
@@ -44,7 +40,7 @@
 /********************************************************************************
  * defines
  ********************************************************************************/
-//#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
+#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define FW_MAIN_VERSION  0          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
 #define FW_SUB_VERSION   1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
@@ -57,6 +53,9 @@
 #define VOL_MAX_PRESET              15
 #define VOL_INI_PRESET              6
 #define SLEEP_TIMER_MINUTES_PRESET  15 /* The number should be an integer divisible by 5 */
+
+/* buttons */
+//#define FIVE_BUTTONS             /* if not define, three buttons are used
 
 /* pin assignment */
 #define BUTTON_PLAY_PIN      A0  /* Buttons */
@@ -143,7 +142,8 @@
 #define DF_PLAYER_COM_DELAY               100  /* ms, delay to make shure that communication was finished with df player before continuing in program */
 #define SLEEP_TIMER_MINUTES_MAX           60
 #define SLEEP_TIMER_MINUTES_INTERVAL      5    /* configuration interval in admin menu ( 5 min, 10 min ...) */
-#define BUTTON_LONG_PRESS_TIME            1000 /* ms */
+#define BUTTON_LONG_PRESS_TIME            1500 /* ms */
+#define BUTTON_VOLUME_LONG_PRESS_TIME     500  /* ms, only used when 3 button mode is enabled, if button up/down is pressed for this time, volume is changed */
 #define STARTUP_DELAY                     500  /* ms, delay between startup sound and music, if tag is detected immediately after startup (sounds better with a short delay between them) */
 /* For every folder the actual track can be stored in eeprom (audio book mode).
  * Therefore the track number (0 ... 255) is stored at folder number - 1.
@@ -165,8 +165,10 @@ typedef enum : uint8_t
     BUTTON_PLAY,
     BUTTON_UP,
     BUTTON_DOWN,
+#ifdef FIVE_BUTTONS
     BUTTON_NEXT,
     BUTTON_PREV,
+#endif
     NR_OF_BUTTONS,      /* DO NOT USE AS BUTTON */
 } ButtonNr_t;
 
@@ -279,8 +281,14 @@ CRGB ambientLeds[WS2812B_NR_OF_LEDS]                 = {};
 static CHSV colorCurrent                             = CHSV(0, 255, 255); /* hue (like angle on color circle, saturation, brightness */
 
 /* Buttons */
+#ifdef FIVE_BUTTONS
 static Button button[NR_OF_BUTTONS]                  = { BUTTON_PLAY_PIN, BUTTON_UP_PIN, BUTTON_DOWN_PIN, BUTTON_NEXT_PIN, BUTTON_PREV_PIN };
 static bool ignoreNextButtonRelease[NR_OF_BUTTONS]   = { false, false, false, false, false };
+static bool ignoreNextButtonLongPress[NR_OF_BUTTONS] = { false, false, false, false, false }; /* ignore all incomming long button presses till next release */
+#else
+static Button button[NR_OF_BUTTONS]                  = { BUTTON_PLAY_PIN, BUTTON_UP_PIN, BUTTON_DOWN_PIN };
+static bool ignoreNextButtonRelease[NR_OF_BUTTONS]   = { false, false, false };
+#endif
 
 /* sleep timer */
 static bool sleepTimerIsActive                       = false;
@@ -698,8 +706,7 @@ static void buttonHandler(void)
     }
     
     if (button_wasReleased(BUTTON_PLAY))
-    {   
-        DEBUG_PRINT_LN(F("BUTTON PLAY RELEASED"));
+    {        
         if (IS_LISTENMODE(folder.mode))
         {
             if (mp3_isPlaying())
@@ -727,9 +734,9 @@ static void buttonHandler(void)
         }
     }
     
+#ifdef FIVE_BUTTONS
     if (button_wasReleased(BUTTON_UP)) 
     {
-        DEBUG_PRINT_LN(F("BUTTON UP RELEASED"));
         if (mp3_isPlaying())
         {
             volumeUp();
@@ -738,7 +745,6 @@ static void buttonHandler(void)
 
     if (button_wasReleased(BUTTON_DOWN))
     {
-        DEBUG_PRINT_LN(F("BUTTON DOWN RELEASED"));
         if (mp3_isPlaying())
         {
             volumeDown();
@@ -747,7 +753,6 @@ static void buttonHandler(void)
 
     if (button_wasReleased(BUTTON_NEXT))
     {
-        DEBUG_PRINT_LN(F("BUTTON NEXT RELEASED"));
         if (mp3_isPlaying())
         {
             nextTrack();
@@ -756,12 +761,44 @@ static void buttonHandler(void)
     
     if (button_wasReleased(BUTTON_PREV))
     {
-        DEBUG_PRINT_LN(F("BUTTON PREV RELEASED"));
         if (mp3_isPlaying())
         {
             previousTrack();
         }
     }
+#else
+    if (button_wasReleased(BUTTON_UP)) 
+    {
+        if (mp3_isPlaying())
+        {
+            nextTrack();
+        }
+    }
+
+    if (button_wasReleased(BUTTON_DOWN))
+    {
+        if (mp3_isPlaying())
+        {
+            previousTrack();
+        }
+    }
+
+    if (button_pressedFor(BUTTON_UP, BUTTON_VOLUME_LONG_PRESS_TIME))
+    {
+        if (mp3_isPlaying())
+        {
+            volumeUp();
+        }
+    }
+    
+    if (button_pressedFor(BUTTON_DOWN, BUTTON_VOLUME_LONG_PRESS_TIME))
+    {
+        if (mp3_isPlaying())
+        {
+            volumeDown();
+        }
+    }
+#endif
 }
 
 /**
@@ -929,8 +966,10 @@ void setup(void)
     pinMode(BUTTON_PLAY_PIN, INPUT_PULLUP);
     pinMode(BUTTON_UP_PIN,   INPUT_PULLUP);
     pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
+#ifdef FIVE_BUTTONS
     pinMode(BUTTON_NEXT_PIN, INPUT_PULLUP);
     pinMode(BUTTON_PREV_PIN, INPUT_PULLUP);
+#endif
     pinMode(SLEEP_TIMER_LED_PIN, OUTPUT);
     pinMode(DF_PLAYER_BUSY_PIN, INPUT_PULLUP);
        
@@ -987,6 +1026,7 @@ void setup(void)
     button_readAll();
     while (!button_allReleased())
     {
+        mp3_loop();
         button_readAll();
     }
 }
