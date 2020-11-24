@@ -69,6 +69,7 @@
             case MODE_SHUFFLE:
                 /* fall through */
             case MODE_AUDIO_BOOK:
+                mp3_playMp3FolderTrack(MP3_NEW_KNOWN_TAG);
                 folder = nfcTag.folderSettings;
                 playFolder();
                 break;

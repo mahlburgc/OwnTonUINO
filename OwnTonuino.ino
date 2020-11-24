@@ -107,6 +107,7 @@
 #define MP3_MODE_KEYCARD                  313
 #define MP3_STARTUP_SOUND                 500
 #define MP3_BEEP                          501
+#define MP3_NEW_KNOWN_TAG                 502
 #define MP3_ACTION_ABORT_INTRO            800
 #define MP3_ACTION_ABORT_OK               801
 #define MP3_NO                            802
