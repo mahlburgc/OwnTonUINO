@@ -211,6 +211,7 @@ static void adminMenu_enter(void)
     
     mp3_pause();
     sleepTimer_disable();
+    FastLED.showColor(CRGB::White);
     skipNextTrack = true;
     
     mp3_playMp3FolderTrack(MP3_ADMIN_MENU_PINCODE, DO_NOT_WAIT);
@@ -261,6 +262,7 @@ static void adminMenu_enter(void)
         mp3_playMp3FolderTrack(MP3_PIN_CODE_WRONG);
     }
     
+    FastLED.show();
     skipNextTrack = false;
 }
 

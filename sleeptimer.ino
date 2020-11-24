@@ -29,32 +29,25 @@ static void sleepTimer_handler(void)
 {
     unsigned long currentTime    = 0;
     unsigned long sleepTime      = 0;
-    static uint16_t muteCounter  = 0; /* used to mute music steadily */
 
     if (sleepTimerIsActive)
     {
         currentTime = millis();
-        sleepTime = sleepTimerActivationTime + ((unsigned long)deviceSettings.sleepTimerMinutes  * 60000); /* x 60000 converts form minutes to ms */
+        sleepTime = sleepTimerActivationTime + ((unsigned long)deviceSettings.sleepTimerMinutes  * 6000); /* x 60000 converts form minutes to ms, DEBUG CHANGED TO 6000 */
         
 #ifdef DEBUG
-        static uint16_t printCounter = 0;
-        if (printCounter >= 30) /* this value was choosen by trying to find a good serial print interval */
-        {   
+        EVERY_N_MILLISECONDS(1000)
+        {
             DEBUG_PRINT(F("sleep timer time left: "));
             DEBUG_PRINT_LN((signed long)sleepTime - (signed long)currentTime);
-            printCounter = 0;
-        }
-        else
-        {
-            printCounter++;
         }
 #endif
             
         if (currentTime >= sleepTime)
         {
-            if (muteCounter >= 50) /* this value was choosen by trying to find a good volume decrease interval */
+            setNewState(STATE_SLEEPTIMER_ELAPSED);
+            EVERY_N_MILLISECONDS(2000)
             {
-                muteCounter = 0;
                 mp3_decreaseVolume();
                 DEBUG_PRINT_LN(F("Decreasing volume"));
                 
@@ -65,7 +58,6 @@ static void sleepTimer_handler(void)
                     DEBUG_PRINT_LN(F("sleeping now ...zzz"));
                 }   
             }
-            muteCounter++;
         }
     }
 }
@@ -78,25 +70,28 @@ static void sleepTimer_enable(void)
     DEBUG_TRACE;
     
     /* if sleepTimer is already active, do not reset */
-    if (sleepTimerIsActive == false)
+    if (!sleepTimerIsActive)
     {
         sleepTimerIsActive = true;
         sleepTimerActivationTime = millis();
-        digitalWrite(SLEEP_TIMER_LED_PIN, HIGH);
+        // digitalWrite(SLEEP_TIMER_LED_PIN, HIGH);
         DEBUG_PRINT_LN(F("sleep timer enabled"));        
     }
 }
 
 /**
- * @brief Enable the sleep timer. This method also disables the sleep timer indication led.
+ * @brief Disable the sleep timer. This method also disables the sleep timer indication led.
  */
 static void sleepTimer_disable(void)
 {
     DEBUG_TRACE;
     
-    sleepTimerIsActive = false;
-    sleepTimerActivationTime = 0;
-    mp3_setVolume(volume); /* reset volume if sleepTimer is deactivated while decreasing volume in sleepTimer_handler */
-    digitalWrite(SLEEP_TIMER_LED_PIN, LOW);
-    DEBUG_PRINT_LN(F("sleep timer disabled"));
+    if (sleepTimerIsActive)
+    {
+        sleepTimerIsActive = false;
+        sleepTimerActivationTime = 0;
+        mp3_setVolume(volume); /* reset volume if sleepTimer is deactivated while decreasing volume in sleepTimer_handler */
+        // digitalWrite(SLEEP_TIMER_LED_PIN, LOW);
+        DEBUG_PRINT_LN(F("sleep timer disabled"));
+    }
 }

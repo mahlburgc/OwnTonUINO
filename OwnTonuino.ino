@@ -17,10 +17,16 @@
  *           Changed by Christian Mahlburg and licensed under GNU/GPL.
  *
  *  TODO:
+ *  - make ambient light switchable on/off in admin menu
  * (- if a keycard is put on the player and there is no track playing, short parts of the
  *    track are played because music must be enabled to play advertisement 
  *    -> replace voice lines with red indicator led -> so the whole firmware does
  *       not use advertisement 
+ *  - think about lock also new cards if keycard is used to lock buttons
+ *  - more leds for higher brightness
+ *  - print led configuration (number of leds, global max led brightness)
+ *  - add power observation from led library
+ *  - add sound when new known card is put on the box
  *
  ********************************************************************************/
 
@@ -33,11 +39,12 @@
 #include <MFRC522.h>
 #include <SPI.h>
 #include <SoftwareSerial.h>
+#include <FastLED.h>
 
 /********************************************************************************
  * defines
  ********************************************************************************/
-#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
+//#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define FW_MAIN_VERSION  0          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
 #define FW_SUB_VERSION   1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
@@ -64,6 +71,11 @@
 #define DF_PLAYER_BUSY_PIN   4
 #define OPEN_ANALOG_PIN      A7  /* ADC, used for random number generation */
 #define SLEEP_TIMER_LED_PIN  A5  /* LEDs */
+#define WS2812B_LED_DATA_PIN 5  /* same as A6 */
+
+/* WS2812B Ambient LEDs */
+#define WS2812B_NR_OF_LEDS   2
+#define WB2812B_BRIGHTNESS   255
 
 /* DEBUG tools */
 #ifdef  DEBUG
@@ -123,7 +135,7 @@
 #define ADV_BUTTONS_UNLOCKED              300
 #define ADV_BUTTONS_LOCKED                301
 
-#define SERIAL_BAUD         115200
+#define SERIAL_BAUD                       115200
 #define DF_PLAYER_MAX_TRACKS_IN_FOLDER    255  /* from datasheet */
 #define DF_PLAYER_MAX_FOLDER              100
 #define DF_PLAYER_MAX_VOL                 30
@@ -227,8 +239,19 @@ typedef struct
   uint8_t version;
   FolderSettings_t folderSettings;
 } NfcTagObject_t;
- 
- static const uint8_t FW_VERSION = (FW_MAIN_VERSION << 4) + (FW_SUB_VERSION);
+
+typedef enum
+{
+    STATE_NORMAL,               /* normal state, music can be played, cards can be read */
+    STATE_SLEEPTIMER_ENABLE,    /* sleep timer is enabled and counting down */
+    STATE_SLEEPTIMER_ELAPSED,   /* sleep timer is enabled and elapsed */
+    STATE_SLEEPTIMER_DISABLE,   /* sleep timer is going to be disabled */
+} State_t;
+
+static State_t state = STATE_NORMAL;
+static State_t stateOld = STATE_NORMAL;
+
+static const uint8_t FW_VERSION = (FW_MAIN_VERSION << 4) + (FW_SUB_VERSION);
  
 /* DFPlayer Mini */
 static SoftwareSerial mySoftwareSerial(DF_PLAYER_RX_PIN, DF_PLAYER_TX_PIN); /* RX, TX */
@@ -249,6 +272,10 @@ MFRC522::StatusCode status                           = MFRC522::STATUS_OK;
 
 static FolderSettings_t folder                       = { 0, MODE_UNSET };
 static DeviceSettings_t deviceSettings               = {};
+
+/* WB2812B Ambient LEDs */
+CRGB ambientLeds[WS2812B_NR_OF_LEDS]                 = {};
+static CHSV colorCurrent                             = CHSV(0, 255, 255); /* hue (like angle on color circle, saturation, brightness */
 
 /* Buttons */
 static Button button[NR_OF_BUTTONS]                  = { BUTTON_PLAY_PIN, BUTTON_UP_PIN, BUTTON_DOWN_PIN, BUTTON_NEXT_PIN, BUTTON_PREV_PIN };
@@ -323,6 +350,9 @@ static bool button_allReleased(void);
 static void sleepTimer_handler(void);
 static void sleepTimer_enable(void);
 static void sleepTimer_disable(void);
+
+/* WS2812B ambient LED */
+static void ambientLed_handler(void);
 
 /* DEBUG */
 #ifdef DEBUG
@@ -687,10 +717,12 @@ static void buttonHandler(void)
         if (sleepTimerIsActive)
         {
             sleepTimer_disable();
+            setNewState(STATE_NORMAL);
         }
         else
         {
             sleepTimer_enable();
+            setNewState(STATE_SLEEPTIMER_ENABLE);
         }
     }
     
@@ -730,6 +762,132 @@ static void buttonHandler(void)
         }
     }
 }
+
+/**
+ * @brief This method handles the ambient light in the main loop.
+ *        If music is playing, color is continuously changing.
+ *        If music is paused, color is not changing.
+ *        If sleeptimer is enabled, ambientLigth is turning of till sleep time elapsed and music is playing again.
+ */
+static void ambientLed_handler(void)
+{
+    static CHSV colorOld                 = colorCurrent;
+    const CHSV COLOR_SLEEP_TIMER         = CHSV(28, 255, 160); /* low light orange */
+    const CHSV COLOR_SLEEPING            = CHSV(COLOR_SLEEP_TIMER.hue, COLOR_SLEEP_TIMER.sat, 0); /* brightness turned off */
+    
+    switch (state)
+    {
+    default: /* fall through */
+    case STATE_NORMAL:
+        EVERY_N_MILLISECONDS(10)
+        {
+            if (mp3_isPlaying())
+            {
+                if (ambientLed_blend(CHSV(colorCurrent.hue, 255, 255), 15))
+                {     
+                    EVERY_N_MILLISECONDS(200)
+                    {
+                        colorCurrent.hue++;
+                        fill_solid(ambientLeds, WS2812B_NR_OF_LEDS, colorCurrent); /* fill all leds */
+                    }
+                }
+            }
+            else if (stateOld == STATE_SLEEPTIMER_ENABLE)
+            {
+                ambientLed_blend(CHSV(colorCurrent.hue, 255, 255), 15);
+            }
+        }
+        break;
+        
+    case STATE_SLEEPTIMER_ENABLE:
+        EVERY_N_MILLISECONDS(1)
+        {
+            ambientLed_blend(COLOR_SLEEP_TIMER, 1);
+        }
+        break;
+    
+    case STATE_SLEEPTIMER_ELAPSED:
+        EVERY_N_MILLISECONDS(50)
+        {
+            if (ambientLed_blend(COLOR_SLEEPING, 1))
+            {
+                setNewState(STATE_NORMAL);
+            }
+        }
+        break;
+    }
+    
+    if (colorCurrent != colorOld)
+    {
+        FastLED.show();
+        colorOld = colorCurrent;
+    }
+}
+
+static bool ambientLed_blend(const CHSV colorTarget, const uint8_t stepSize)
+{    
+    ASSERT(255%stepSize == 0); /* 255 must be fully dividabel bay stepSize TODO this is not nice code */
+
+    static uint8_t k = 0; /* the amount to blend [0-255] */
+    static CHSV colorStart = colorCurrent;
+    bool retVal = false; /* true, if colorTarget is reached */
+    static State_t lastState = STATE_NORMAL;
+
+    if (colorCurrent != colorTarget)
+    {
+        if ((state != lastState) || (k == 0)) /* state changed, start new blending animation */
+        {
+            k = 0;
+            colorStart = colorCurrent;
+            lastState = state;
+            DEBUG_PRINT_LN(F("start led blend"));
+        }
+        
+        k += stepSize;
+        colorCurrent = blend(colorStart, colorTarget, k, SHORTEST_HUES);
+        fill_solid(ambientLeds, WS2812B_NR_OF_LEDS, colorCurrent);
+    }
+    
+    if (colorCurrent == colorTarget)
+    {
+        retVal = true;
+    }
+    
+    return retVal;
+}
+
+static void setNewState(State_t stateNew)
+{
+    if (stateNew != state)
+    {
+        stateOld = state;
+        state = stateNew;
+    }
+}
+    
+
+static void ambientLed_keylockAnimation(void) /* blocking mode */
+{
+    uint8_t hue = 96; /* CHSV green */
+    const uint16_t BLINK_DELAY = 250;
+    
+    if (buttonsLocked)
+    {
+        hue = 0; /* CHSV red */
+    }
+    
+    FastLED.showColor(CHSV(hue, 0xFF, 0xFF));
+    delay(BLINK_DELAY);
+    FastLED.showColor(CRGB::Black);
+    delay(BLINK_DELAY);
+    FastLED.showColor(CHSV(hue, 0xFF, 0xFF));
+    delay(BLINK_DELAY);
+    FastLED.showColor(CRGB::Black);
+    delay(BLINK_DELAY);
+    FastLED.show();
+}
+
+        
 
 /********************************************************************************
  * main program
@@ -787,14 +945,28 @@ void setup(void)
 
     if (reset == true)
     {
-        mp3_playMp3FolderTrack(MP3_SETTINGS_RESET_OK);
+        mp3_playMp3FolderTrack(MP3_SETTINGS_RESET_OK, DO_NOT_WAIT);
     }
     else
     {
-        mp3_playMp3FolderTrack(MP3_STARTUP_SOUND);
+        mp3_playMp3FolderTrack(MP3_STARTUP_SOUND, DO_NOT_WAIT);
+    }
+    
+    /* WB2812B Ambient LEDs */
+    FastLED.addLeds<WS2812B, WS2812B_LED_DATA_PIN, GRB>(ambientLeds, WS2812B_NR_OF_LEDS);
+    FastLED.setBrightness(0);
+    colorCurrent = CHSV(random(0, 0xFF), 255, 255); /* initialize random startup color */
+    fill_solid(ambientLeds, WS2812B_NR_OF_LEDS, colorCurrent);
+    
+    for (uint8_t i = 0; i < WB2812B_BRIGHTNESS; i++)
+    {
+        FastLED.setBrightness(i);
+        FastLED.show();
+        delay(8);
     }
     
     settings_print();
+    while(mp3_isPlaying()); /* wait till startup sound is finished */
     delay(STARTUP_DELAY);
     playFolder();
     
@@ -813,12 +985,19 @@ void setup(void)
  */
 void loop(void)
 {    
-    while (!mfrc522.PICC_IsNewCardPresent())
+    /* DEBUG REMOVE THIS */
+    static uint32_t counter = 0;
+
+    while (true)
     {
-        mp3_loop();
         buttonHandler();
         sleepTimer_handler();
-        delay(1);
+        ambientLed_handler();
+        // DEBUG_PRINT_LN(counter++);
+        EVERY_N_MILLISECONDS(100)
+        {
+            mp3_loop();
+            nfc_handler(); /* it  resource intesive to check if card is available, so don't do it every cycle */
+        }
     }
-    nfc_handler();
 }
