@@ -78,11 +78,12 @@ static void mp3_decreaseVolume(void)
 }
 
 /**
- * @brief Play a specific track from a specific folder.
+ * @brief Play a specific track from a specific folder. This function also sets the current track start time.
  */
 static void mp3_playFolderTrack(uint8_t folder, uint16_t track)
 {
     mp3.playFolderTrack(folder, track);
+    currentTrackStartTime = millis();
     delay(DF_PLAYER_COM_DELAY);
 }
 

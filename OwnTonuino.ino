@@ -40,7 +40,7 @@
 /********************************************************************************
  * defines
  ********************************************************************************/
-#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
+//#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define FW_MAIN_VERSION  0          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
 #define FW_SUB_VERSION   1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
@@ -145,6 +145,7 @@
 #define BUTTON_LONG_PRESS_TIME            1500 /* ms */
 #define BUTTON_VOLUME_LONG_PRESS_TIME     500  /* ms, only used when 3 button mode is enabled, if button up/down is pressed for this time, volume is changed */
 #define STARTUP_DELAY                     500  /* ms, delay between startup sound and music, if tag is detected immediately after startup (sounds better with a short delay between them) */
+#define PREV_TRACK_DELAY                  4000 /* if track is playing for more than PREV_TRACK_DELAY ms, song starts from the beginning, if previous track button is pressed, otherwise previous track is playing */
 /* For every folder the actual track can be stored in eeprom (audio book mode).
  * Therefore the track number (0 ... 255) is stored at folder number - 1.
  * Example: If folder number 5 is in audio book mode, the last played track is stored at eeprom address 5.
@@ -260,9 +261,10 @@ static const uint8_t FW_VERSION = (FW_MAIN_VERSION << 4) + (FW_SUB_VERSION);
 static SoftwareSerial mySoftwareSerial(DF_PLAYER_RX_PIN, DF_PLAYER_TX_PIN); /* RX, TX */
 static uint16_t numTracksInFolder                    = 0;
 static uint16_t currentTrack                         = 0;
+static uint32_t currentTrackStartTime                = 0;                  /* if previous track button is pressed and and track is playing for more than x seconds, the actual track starts from the beginning, otherwise previous track is playing */
 static uint8_t queue[DF_PLAYER_MAX_TRACKS_IN_FOLDER] = { 0 };
 static uint8_t volume                                = VOL_INI_PRESET;
-static bool skipNextTrack                            = false;            /* skip next track if configuring nfc tag or using admin menu */
+static bool skipNextTrack                            = false;               /* skip next track if configuring nfc tag or using admin menu */
 
 /* MFRC522 */
 MFRC522 mfrc522(MFRC522_SS_PIN, MFRC522_RST_PIN); 
@@ -278,7 +280,7 @@ static DeviceSettings_t deviceSettings               = {};
 
 /* WB2812B Ambient LEDs */
 CRGB ambientLeds[WS2812B_NR_OF_LEDS]                 = {};
-static CHSV colorCurrent                             = CHSV(0, 255, 255); /* hue (like angle on color circle, saturation, brightness */
+static CHSV colorCurrent                             = CHSV(0, 255, 255); /* hue (like angle on color circle), saturation, brightness */
 
 /* Buttons */
 #ifdef FIVE_BUTTONS
@@ -443,8 +445,7 @@ static DFMiniMp3<SoftwareSerial, Mp3Notify> mp3(mySoftwareSerial);
  * private methods
  ********************************************************************************/
  /**
- * @brief If an assertion fails, file and line is transmitted to debug usart
- *        and program is halted.
+ * @brief If an assertion fails, file and line is transmitted to debug uart.
  */
 #ifdef DEBUG
 static void assertFailed(const char* file, const uint32_t line)
@@ -525,13 +526,17 @@ static void nextTrack(void)
 static void previousTrack(void)
 {
     DEBUG_TRACE;
+    uint32_t currentTime = millis();
 
     if (folder.mode == MODE_ALBUM)
     {
-        if (currentTrack > 1)
+        if (currentTime < (currentTrackStartTime + PREV_TRACK_DELAY))
         {
-          currentTrack = currentTrack - 1;
-          
+            if (currentTrack > 1)
+            {
+              currentTrack = currentTrack - 1;
+              
+            }
         }
         mp3_playFolderTrack(folder.number, currentTrack);
         DEBUG_PRINT(F("album mode -> prev track: "));
@@ -540,17 +545,20 @@ static void previousTrack(void)
     
     if (folder.mode == MODE_SHUFFLE)
     {
-        if (currentTrack > 1)
+        if (currentTime < (currentTrackStartTime + PREV_TRACK_DELAY))
         {
-            currentTrack--;
-            DEBUG_PRINT(F("shuffle mode -> prev track: "));
-            DEBUG_PRINT_LN(queue[currentTrack-1]);
-        }
-        else
-        {
-            currentTrack = numTracksInFolder;
-            DEBUG_PRINT(F("shuffle mode -> beginning of queue, jump to last track in queue: "));
-            DEBUG_PRINT_LN(queue[currentTrack-1]);
+            if (currentTrack > 1)
+            {
+                currentTrack--;
+                DEBUG_PRINT(F("shuffle mode -> prev track: "));
+                DEBUG_PRINT_LN(queue[currentTrack-1]);
+            }
+            else
+            {
+                currentTrack = numTracksInFolder;
+                DEBUG_PRINT(F("shuffle mode -> beginning of queue, jump to last track in queue: "));
+                DEBUG_PRINT_LN(queue[currentTrack-1]);
+            }
         }
         DEBUG_PRINT_LN(queue[currentTrack - 1]);
         mp3_playFolderTrack(folder.number, queue[currentTrack - 1]);
@@ -558,9 +566,12 @@ static void previousTrack(void)
     
     if (folder.mode == MODE_AUDIO_BOOK)
     {
-        if (currentTrack > 1)
+        if (currentTime < (currentTrackStartTime + PREV_TRACK_DELAY))
         {
-          currentTrack = currentTrack - 1;
+            if (currentTrack > 1)
+            {
+              currentTrack = currentTrack - 1;
+            }
         }
         mp3_playFolderTrack(folder.number, currentTrack);
         EEPROM.update(folder.number, currentTrack);
@@ -1039,7 +1050,7 @@ void setup(void)
 void loop(void)
 {    
     /* DEBUG REMOVE THIS */
-    static uint32_t counter = 0;
+    //static uint32_t counter = 0;
 
     while (true)
     {
