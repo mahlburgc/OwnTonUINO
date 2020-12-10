@@ -76,6 +76,10 @@ static void adminMenu_main(void)
                     adminMenu_setSleepTimer();
                     break;
                     
+                case ADMIN_MENU_SET_AMBIENT_LIGHT:
+                    adminMenu_setAmbientLight();
+                    break;
+                    
                 case ADMIN_MENU_SETTINGS_RESET:
                     adminMenu_resetDeviceSettings();
                     break;
@@ -125,7 +129,7 @@ static void adminMenu_setVolume(AdminMenuOptions_t menuOption)
         {
             volTemp++;                
         }
-        else if (button_wasReleased(BUTTON_DOWN) && (volTemp > 1)) /* it should not be possible to set max, min or init volume to zero (may cant here admin menu anymore on next startup) */
+        else if (button_wasReleased(BUTTON_DOWN) && (volTemp > 1)) /* it should not be possible to set max, min or init volume to zero (may cant hear admin menu anymore on next startup) */
         {
             volTemp--;
         }
@@ -177,6 +181,33 @@ static void adminMenu_setSleepTimer(void)
     
     settings_writeToEeprom();
     mp3_playMp3FolderTrack((MP3_SLEEP_TIMER_OK));
+}
+
+/**
+ * @brief This method handles the submenu to activate or deactivate the ambient light. Note that ambient light is still working for keylock indication, admin menu indication and sleepmode.
+ */
+static void adminMenu_setAmbientLight(void)
+{
+    bool ambientLightEnable = true; 
+
+    mp3_playMp3FolderTrack(MP3_AMBIENT_LIGHT_SELECTED, DO_NOT_WAIT);
+    
+    button_readAll();
+    while (!button_wasReleased(BUTTON_PLAY))
+    {
+        button_readAll();
+        mp3_loop();
+        
+        if (button_wasReleased(BUTTON_UP) || button_wasReleased(BUTTON_DOWN))
+        {
+            ambientLightEnable = !ambientLightEnable; /* toggle ambientLightEnable on every button press */
+            mp3_playMp3FolderTrack((MP3_NO + ambientLightEnable), DO_NOT_WAIT);
+        }
+    }
+    
+    deviceSettings.ambientLedEnable = ambientLightEnable;
+    settings_writeToEeprom();
+    mp3_playMp3FolderTrack(MP3_AMBIENT_LIGHT_OK);
 }
 
 /**

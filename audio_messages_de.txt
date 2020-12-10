@@ -32,6 +32,9 @@ mp3/0941_min_volume_ok.mp3|OK. Die minimale Lautstärke wurde neu konfiguriert.
 mp3/0942_init_volume_ok.mp3|OK. Die Lautstärke beim Start wurde neu konfiguriert.
 mp3/0943_sleep_timer_ok.mp3|OK. OK. Der Einschlaftimer wurde neu konfiguriert.
 mp3/0944_settings_reset_ok.mp3|OK. Alle Einstellungen wurden zurückgesetzt.
+mp3/0970_ambient_light_intro.mp3|Die Beleuchtung aktivieren oder deaktivieren.
+mp3/0971_ambient_light_selected.mp3|Soll die Beleuchtung im Wiedergabemodus aktiviert werden?
+mp3/0972_ambient_light_ok.mp3|OK. Die Beleuchtung wurde neu konfiguriert.
 
 advert/0300_buttons_unlocked.mp3|Die Tasten sind nun entsperrt.
 advert/0301_buttons_locked.mp3|Die Tasten sind nun gesperrt.

@@ -71,7 +71,7 @@
 #define DF_PLAYER_BUSY_PIN   4
 #define OPEN_ANALOG_PIN      A7  /* ADC, used for random number generation */
 #define SLEEP_TIMER_LED_PIN  A5  /* LEDs */
-#define WS2812B_LED_DATA_PIN 5  /* same as A6 */
+#define WS2812B_LED_DATA_PIN 5   /* same as A6 */
 
 /* WS2812B Ambient LEDs */
 #define WS2812B_NR_OF_LEDS   1
@@ -132,6 +132,9 @@
 #define MP3_SETTINGS_RESET_INTRO          960
 #define MP3_SETTINGS_RESET_SELECTED       961
 #define MP3_SETTINGS_RESET_OK             962
+#define MP3_AMBIENT_LIGHT_INTRO           970
+#define MP3_AMBIENT_LIGHT_SELECTED        971
+#define MP3_AMBIENT_LIGHT_OK              972
 /* advert track number*/
 #define ADV_BUTTONS_UNLOCKED              300
 #define ADV_BUTTONS_LOCKED                301
@@ -207,6 +210,7 @@ typedef enum : uint8_t  /* if the order of the menu options is changed, also the
     ADMIN_MENU_FIRST_OPTION     = 0,                          /* DO NOT USE AS OPTION */
     ADMIN_MENU_SET_SLEEP_TIMER  = ADMIN_MENU_FIRST_OPTION,    /* configure the sleeptimer in minutes */
     ADMIN_MENU_RESET_NFC_TAG,                                 /* reconfigure a new or a configured nfc tag */
+    ADMIN_MENU_SET_AMBIENT_LIGHT,                             /* enable/disable ambient light */
     ADMIN_MENU_SET_VOL_MAX,                                   /* set the maximum volume level */
     ADMIN_MENU_SET_VOL_MIN,                                   /* set the minimum volume level */
     ADMIN_MENU_SET_VOL_INI,                                   /* set the startup volume level */
@@ -219,6 +223,7 @@ const uint16_t MP3_ADMIN_MENU_OPTIONS_ARRAY[NR_OF_MENU_OPTIONS] =
 { 
     MP3_SLEEP_TIMER_INTRO, 
     MP3_CARD_RESET_INTRO, 
+    MP3_AMBIENT_LIGHT_INTRO,
     MP3_VOL_MAX_INTRO, 
     MP3_VOL_MIN_INTRO, 
     MP3_VOL_INI_INTRO, 
@@ -325,6 +330,7 @@ static void settings_print(void);
 static void adminMenu_main(void);
 static void adminMenu_setVolume(AdminMenuOptions_t menuOption);
 static void adminMenu_setSleepTimer(void);
+static void adminMenu_setAmbientLight(void);
 static void adminMenu_resetDeviceSettings(void);
 static void adminMenu_enter(void);
 static bool adminMenu_pinCompare(const ButtonNr_t* enteredCode, const ButtonNr_t* pinCode);
@@ -1070,7 +1076,7 @@ void loop(void)
         EVERY_N_MILLISECONDS(100)
         {
             mp3_loop();
-            nfc_handler(); /* it  resource intesive to check if card is available, so don't do it every cycle */
+            nfc_handler(); /* it is resource intesive to check if card is available, so don't do it every cycle */
         }
     }
 }
