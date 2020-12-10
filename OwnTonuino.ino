@@ -864,9 +864,9 @@ static void ambientLed_handler(void)
         break;
         
     case STATE_SLEEPTIMER_ENABLE:
-        EVERY_N_MILLISECONDS(1)
+        EVERY_N_MILLISECONDS(10)
         {
-            ambientLed_blend(COLOR_SLEEP_TIMER, 1);
+            ambientLed_blend(COLOR_SLEEP_TIMER, 15);
         }
         break;
     
@@ -906,7 +906,20 @@ static bool ambientLed_blend(const CHSV colorTarget, const uint8_t stepSize)
             lastState = state;
             DEBUG_PRINT_LN(F("start led blend"));
         }
-        
+        DEBUG_PRINT(F("colorTarget:  "));
+        DEBUG_PRINT(colorTarget.hue);
+        DEBUG_PRINT(" ");
+        DEBUG_PRINT(colorTarget.sat);
+        DEBUG_PRINT(" ");
+        DEBUG_PRINT_LN(colorTarget.val);
+        DEBUG_PRINT(F("colorCurrent: "));
+        DEBUG_PRINT(colorCurrent.hue);
+        DEBUG_PRINT(" ");
+        DEBUG_PRINT(colorCurrent.sat);
+        DEBUG_PRINT(" ");
+        DEBUG_PRINT(colorCurrent.val);
+        DEBUG_PRINT(F("    k: "));
+        DEBUG_PRINT_LN(k);
         k += stepSize;
         colorCurrent = blend(colorStart, colorTarget, k, SHORTEST_HUES);
         fill_solid(ambientLeds, WS2812B_NR_OF_LEDS, colorCurrent);
@@ -915,6 +928,7 @@ static bool ambientLed_blend(const CHSV colorTarget, const uint8_t stepSize)
     if (colorCurrent == colorTarget)
     {
         retVal = true;
+        k = 0;
     }
     
     return retVal;

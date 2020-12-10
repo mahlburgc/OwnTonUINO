@@ -191,6 +191,8 @@ static void adminMenu_setAmbientLight(void)
     bool ambientLightEnable = true; 
 
     mp3_playMp3FolderTrack(MP3_AMBIENT_LIGHT_SELECTED, DO_NOT_WAIT);
+    skipMp3WithButtonPress();
+    mp3_playMp3FolderTrack((MP3_NO + ambientLightEnable), DO_NOT_WAIT);
     
     button_readAll();
     while (!button_wasReleased(BUTTON_PLAY))
