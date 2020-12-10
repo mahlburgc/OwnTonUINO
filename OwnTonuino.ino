@@ -53,9 +53,10 @@
 #define VOL_MAX_PRESET              15
 #define VOL_INI_PRESET              6
 #define SLEEP_TIMER_MINUTES_PRESET  15 /* The number should be an integer divisible by 5 */
+#define AMBIENT_LED_ENABLE_PRESET   true
 
 /* buttons */
-//#define FIVE_BUTTONS             /* if not define, three buttons are used
+// #define FIVE_BUTTONS             /* if not define, three buttons are used
 
 /* pin assignment */
 #define BUTTON_PLAY_PIN      A0  /* Buttons */
@@ -73,7 +74,7 @@
 #define WS2812B_LED_DATA_PIN 5  /* same as A6 */
 
 /* WS2812B Ambient LEDs */
-#define WS2812B_NR_OF_LEDS   2
+#define WS2812B_NR_OF_LEDS   1
 #define WB2812B_BRIGHTNESS   255
 
 /* DEBUG tools */
@@ -235,6 +236,7 @@ typedef struct
     uint8_t version;
     uint8_t volume[NR_OF_VOL_SETTINGS];
     uint8_t sleepTimerMinutes;
+    bool ambientLedEnable = true;
 } DeviceSettings_t;
 
 typedef struct 
@@ -830,20 +832,27 @@ static void ambientLed_handler(void)
     case STATE_NORMAL:
         EVERY_N_MILLISECONDS(10)
         {
-            if (mp3_isPlaying())
+            if (deviceSettings.ambientLedEnable == true)
             {
-                if (ambientLed_blend(CHSV(colorCurrent.hue, 255, 255), 15))
-                {     
-                    EVERY_N_MILLISECONDS(200)
-                    {
-                        colorCurrent.hue++;
-                        fill_solid(ambientLeds, WS2812B_NR_OF_LEDS, colorCurrent); /* fill all leds */
+                if (mp3_isPlaying())
+                {
+                    if (ambientLed_blend(CHSV(colorCurrent.hue, 255, 255), 15))
+                    {     
+                        EVERY_N_MILLISECONDS(200)
+                        {
+                            colorCurrent.hue++;
+                            fill_solid(ambientLeds, WS2812B_NR_OF_LEDS, colorCurrent); /* fill all leds */
+                        }
                     }
                 }
+                else if (stateOld == STATE_SLEEPTIMER_ENABLE)
+                {
+                    ambientLed_blend(CHSV(colorCurrent.hue, 255, 255), 15);
+                }
             }
-            else if (stateOld == STATE_SLEEPTIMER_ENABLE)
+            else /* ambientLed is disabled */
             {
-                ambientLed_blend(CHSV(colorCurrent.hue, 255, 255), 15);
+                ambientLed_blend(CHSV(colorCurrent.hue, 255, 0), 15);
             }
         }
         break;
@@ -875,7 +884,7 @@ static void ambientLed_handler(void)
 
 static bool ambientLed_blend(const CHSV colorTarget, const uint8_t stepSize)
 {    
-    ASSERT(255%stepSize == 0); /* 255 must be fully dividabel bay stepSize TODO this is not nice code */
+    ASSERT(255%stepSize == 0); /* 255 must be fully dividable by stepSize TODO this is not nice code */
 
     static uint8_t k = 0; /* the amount to blend [0-255] */
     static CHSV colorStart = colorCurrent;
