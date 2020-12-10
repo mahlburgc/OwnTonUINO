@@ -58,6 +58,7 @@ static void settings_reset(void)
     deviceSettings.volume[VOL_MIN]   = VOL_MIN_PRESET;
     deviceSettings.volume[VOL_INI]   = VOL_INI_PRESET;
     deviceSettings.sleepTimerMinutes = SLEEP_TIMER_MINUTES_PRESET;
+    deviceSettings.ambientLedEnable  = AMBIENT_LED_ENABLE_PRESET;
 
     settings_writeToEeprom();
 }
@@ -84,4 +85,14 @@ static void settings_print(void)
 
     Serial.print(F("  Sleeptimer (minutes): "));
     Serial.println(deviceSettings.sleepTimerMinutes);
+    
+    Serial.print(F("  Ambient LED: "));
+    if (deviceSettings.ambientLedEnable == true)
+    {
+        Serial.println(F("enabled"));
+    }
+    else 
+    {
+        Serial.println(F("disabled"));
+    }
 }
