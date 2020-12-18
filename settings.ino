@@ -86,7 +86,7 @@ static void settings_print(void)
     Serial.print(F("  Sleeptimer (minutes): "));
     Serial.println(deviceSettings.sleepTimerMinutes);
     
-    Serial.print(F("  Ambient LED: "));
+    Serial.print(F("  Ambient LED:          "));
     if (deviceSettings.ambientLedEnable == true)
     {
         Serial.println(F("enabled"));

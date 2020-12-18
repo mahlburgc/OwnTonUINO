@@ -42,9 +42,13 @@
  ********************************************************************************/
 //#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
-#define FW_MAIN_VERSION  0          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
-#define FW_SUB_VERSION   1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
-#define GOLDEN_COOKIE    0xAFFEAFFE /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
+#define FW_MAIN_VERSION  1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
+#define FW_SUB_VERSION   0          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
+#define GOLDEN_COOKIE    0xBADEAFFE /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
+
+/* hardware configuration */
+#define WS2812B_NR_OF_LEDS   1
+// #define FIVE_BUTTONS             /* if not define, three buttons are used
 
 /* device presets
  * these presets will be used on device settings reset in eeprom 
@@ -54,9 +58,6 @@
 #define VOL_INI_PRESET              6
 #define SLEEP_TIMER_MINUTES_PRESET  15 /* The number should be an integer divisible by 5 */
 #define AMBIENT_LED_ENABLE_PRESET   true
-
-/* buttons */
-// #define FIVE_BUTTONS             /* if not define, three buttons are used
 
 /* pin assignment */
 #define BUTTON_PLAY_PIN      A0  /* Buttons */
@@ -74,7 +75,6 @@
 #define WS2812B_LED_DATA_PIN 5   /* same as A6 */
 
 /* WS2812B Ambient LEDs */
-#define WS2812B_NR_OF_LEDS   1
 #define WB2812B_BRIGHTNESS   255
 
 /* DEBUG tools */
