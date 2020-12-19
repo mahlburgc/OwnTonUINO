@@ -43,12 +43,24 @@
 //#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define FW_MAIN_VERSION  1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
-#define FW_SUB_VERSION   0          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
-#define GOLDEN_COOKIE    0xBADEAFFE /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
+#define FW_SUB_VERSION   1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
+#define GOLDEN_COOKIE    0xDEADBEAF /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
 
 /* hardware configuration */
 #define WS2812B_NR_OF_LEDS   1
-// #define FIVE_BUTTONS             /* if not define, three buttons are used
+// #define FIVE_BUTTONS                       /* if not defined, three buttons are used
+
+/* Increase RX GAIN if RFID Tags are not detected correctly. A higher gain results in better tag read but seems like i does not improve the ability to write to the tag.
+ * 0x00 18 dB, minimum
+ * 0x01 23 dB
+ * 0x02 18 dB
+ * 0x03 23 dB
+ * 0x04 33 dB, average, and typical default
+ * 0x05 38 dB
+ * 0x06 43 dB
+ * 0x07 48 dB, maximum
+ */
+#define MFRC522_RXGAIN     0x05
 
 /* device presets
  * these presets will be used on device settings reset in eeprom 
@@ -1016,6 +1028,7 @@ void setup(void)
     /* NFC reader init */
     SPI.begin();
     mfrc522.PCD_Init();
+    mfrc522.PCD_SetAntennaGain(MFRC522_RXGAIN << 4);
     Serial.println("MFRC522 Device Information:");
     mfrc522.PCD_DumpVersionToSerial();
     for (uint8_t i = 0; i < 6; i++)
@@ -1058,6 +1071,20 @@ void setup(void)
     }
     
     settings_print();
+    /* print build configuration */
+    Serial.println(F("Build Configuration:"));
+    Serial.print(F("  Number of Buttons:    "));
+    Serial.println(NR_OF_BUTTONS);
+
+    Serial.print(F("  Number of LEDs:       "));
+    Serial.println(WS2812B_NR_OF_LEDS);
+
+    Serial.print(F("  RFID Reader Gain:     "));
+    Serial.println(MFRC522_RXGAIN);
+
+    Serial.print(F("  RFID Cookie:          "));
+    Serial.println(GOLDEN_COOKIE, HEX);
+    
     while(mp3_isPlaying()); /* wait till startup sound is finished */
     delay(STARTUP_DELAY);
     playFolder();
@@ -1086,11 +1113,14 @@ void loop(void)
         buttonHandler();
         sleepTimer_handler();
         ambientLed_handler();
+        /* It is resource intesive to check if card is available, but it's necessary to check as much as possible to increase chance that tag is read.
+         * This does not improve the chance that new tag can be written/configured.
+         */
+        nfc_handler(); 
         // DEBUG_PRINT_LN(counter++);
         EVERY_N_MILLISECONDS(100)
         {
             mp3_loop();
-            nfc_handler(); /* it is resource intesive to check if card is available, so don't do it every cycle */
         }
     }
 }

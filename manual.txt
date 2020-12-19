@@ -1,0 +1,61 @@
+Anleitung OwnTonuino v1.0
+-------------------------
+
+Tastenbelegung                   | 3 Tasten                          | 5 Tasten                                    |
+---------------------------------|-----------------------------------|---------------------------------------------|
+Pause / Wiedergabe               | mitte                             | mitte                                       |
+Titel vor                        | rechts kurz                       | rechts oben                                 |
+Titel zurück                     | links kurz                        | rechts unten                                |
+Lauter                           | rechts lang                       | links oben                                  |
+Leiser                           | links lang                        | links unten                                 |
+Einschlaftimer ein-/ausschalten  | mitte lang                        | mitte lang                                  |
+Admin Menü öffen                 | links, mitte, rechts gleichzeitig | links oben, links unten, mitte gleichzeitig |
+
+
+Einschlafmodus
+--------------
+Um den Einschlafmodus zu aktivieren, muss die Pausetaste für 1,5s gedrückt werden.
+Ist der Einschlafmodus aktiviert, wird die Beleuchtung gedimmt und die Musik und Beleuchtung geht nach einer bestimmten Zeit aus.
+Die Zeit kann im Admin Menü eingestellt werden.
+
+
+Schlüsselkarte
+--------------
+Die Schlüsselkarte ermöglicht das Sperren und Entsperren der Tasten und öffnet das Admin Menü.
+
+
+Admin Menü
+----------
+Zum Öffnen des Admin Menüs siehe Tastenbelegung. Um das Adminmenü freizuschalten, muss ein Passcode eingegeben oder die Schlüsselkarte aufgelegt werden.
+  Passcode (3 Tasten): links, mitte, rechts, rechts, mitte, links
+  Passcode (5 Tasten): links unten, mitte, links oben, links oben, mitte, links unten
+
+Pausetaste lange drücken beendet das Admin Menü.
+
+Optionen im Admin Menü:
+ - Einschlaftimer konfigurieren - Es wird nur die Zeit neu konfiguriert, zum Aktivieren des Einschlafmodus siehe Abschnitt "Einschlafmodus"!
+ - Eine Karte neu konfigurieren - Gilt für bereits konfigurierte und unkonfigurierte Karten / Figuren!
+ - Beleuchtung ein-/Ausschalten - Die Beleuchtung zur Anzeige der Tastensperre und des Einschlafmodus bleiben immer aktiv!
+ - Minimale Lautstärker einstellen
+ - Maximale Lautstärker einstellen
+ - Lautstärke bei Start einstellen
+ - Alle Einstellungen zurücksetzen
+
+Die Einstellungen werden beim Ausschalten des Gerätes gespeichert.
+
+
+Neue Karten oder Figuren erstellen:
+-----------------------------------
+Es wird eine NFC Karte oder NFC Sticker (Mifare Classic) benötigt. Legt man die unkonfigurierte Karte auf, öffnet sich ein Stimmmenü und leitet durch die Konfiguration der Karte.
+Dabei kann zwischen folgenden Modi ausgewählt werden:
+ - Albummodus     - alle Lieder nacheinander abspielen
+ - Partymodus     - alle Lieder in zufälliger Reihenfolge abspielen
+ - Hörbuchmodus   - alle Lieder nacheinander abspielen und den Fortschritt speichern
+ - Schlüsselkarte - siehe Abschnitt "Schlüsselkarte"
+
+Möchte man neue Musik auf den Tonuino spielen, muss die Musik auf die interne SD-Karte kopiert werden. Dazu muss die Box aufgeschraubt und die SD-Karte herausgenommen werden.
+Die SD-Karte hat eine feste Ordnerstrucktur. Diese Strucktur muss eingehalten werden, damit die Musik ordentlich erkannt wird.
+Es können insgesamt 99 eigene Ordner auf der SD-Karte angelegt werden. In jedem Ordner können bis zu 255 Lieder enthalten sein.
+
+Benamung Ordner:  01 ...  99
+Benamung Lieder: 001 ... 255
