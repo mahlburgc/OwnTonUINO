@@ -39,12 +39,11 @@
         return;
     }
     
-    skipNextTrack = true;
-
     if (nfc_readTag(&nfcTag) == true) 
     {
         if (nfcTag.cookie != GOLDEN_COOKIE)
         {
+            skipNextTrack = true;
             sleepTimer_disable();
             FastLED.showColor(CRGB::White);
             
@@ -70,9 +69,13 @@
             case MODE_SHUFFLE:
                 /* fall through */
             case MODE_AUDIO_BOOK:
-                mp3_playMp3FolderTrack(MP3_NEW_KNOWN_TAG);
-                folder = nfcTag.folderSettings;
-                playFolder();
+                if (!buttonsLocked)
+                {
+                    skipNextTrack = true;
+                    mp3_playMp3FolderTrack(MP3_NEW_KNOWN_TAG);
+                    folder = nfcTag.folderSettings;
+                    playFolder();
+                }
                 break;
                 
             case MODE_KEYCARD:
