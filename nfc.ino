@@ -363,7 +363,10 @@ static void nfc_resetTag(void)
     NfcTagObject_t nfcTag;
     bool abort = false;
     
-    mp3_playMp3FolderTrack(MP3_INSERT_TAG, DO_NOT_WAIT);
+    /* IMPORTANT: If using DO_NOT_WAIT here, it's possible that noise sound starts if putting on an nfc tag for reconfiguration.
+     * To avoid this, the whole mp3 track has to be played here.
+     */
+    mp3_playMp3FolderTrack(MP3_INSERT_TAG);
     
     while(!mfrc522.PICC_IsNewCardPresent() && !abort)
     {
