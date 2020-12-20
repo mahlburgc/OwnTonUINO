@@ -161,7 +161,7 @@
 #define BUTTON_LONG_PRESS_TIME            1500 /* ms */
 #define BUTTON_VOLUME_LONG_PRESS_TIME     500  /* ms, only used when 3 button mode is enabled, if button up/down is pressed for this time, volume is changed */
 #define STARTUP_DELAY                     500  /* ms, delay between startup sound and music, if tag is detected immediately after startup (sounds better with a short delay between them) */
-#define PREV_TRACK_DELAY                  4000 /* if track is playing for more than PREV_TRACK_DELAY ms, song starts from the beginning, if previous track button is pressed, otherwise previous track is playing */
+#define PREV_TRACK_DELAY                  6000 /* if track is playing for more than PREV_TRACK_DELAY ms, song starts from the beginning, if previous track button is pressed, otherwise previous track is playing */
 /* For every folder the actual track can be stored in eeprom (audio book mode).
  * Therefore the track number (0 ... 255) is stored at folder number - 1.
  * Example: If folder number 5 is in audio book mode, the last played track is stored at eeprom address 5.

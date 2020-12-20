@@ -381,8 +381,12 @@ static void nfc_resetTag(void)
     {
         while(!mfrc522.PICC_ReadCardSerial())
         {
-            button_readAll();
             mp3_loop();
+            button_readAll();
+            if (button_pressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
+            {
+                abort = true;
+            }
             DEBUG_PRINT_LN(F("cannot read card"));
             delay(100);
         }
@@ -396,6 +400,14 @@ static void nfc_resetTag(void)
     else
     {
         mp3_playMp3FolderTrack(MP3_ACTION_ABORT_OK);
+    }
+    
+    /* wait for all buttons are released before next action */
+    button_readAll();
+    while (!button_allReleased())
+    {
+        mp3_loop();
+        button_readAll();
     }
     
     mfrc522.PICC_HaltA();
