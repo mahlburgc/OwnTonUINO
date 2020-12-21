@@ -158,7 +158,8 @@
 #define DF_PLAYER_COM_DELAY               100  /* ms, delay to make shure that communication was finished with df player before continuing in program */
 #define SLEEP_TIMER_MINUTES_MAX           60
 #define SLEEP_TIMER_MINUTES_INTERVAL      5    /* configuration interval in admin menu ( 5 min, 10 min ...) */
-#define BUTTON_LONG_PRESS_TIME            1500 /* ms */
+#define BUTTON_LONG_PRESS_TIME            1000 /* ms */
+#define BUTTON_SLEEPMODE_LONG_PRESS_TIME  1500 /* ms */
 #define BUTTON_VOLUME_LONG_PRESS_TIME     500  /* ms, only used when 3 button mode is enabled, if button up/down is pressed for this time, volume is changed */
 #define STARTUP_DELAY                     500  /* ms, delay between startup sound and music, if tag is detected immediately after startup (sounds better with a short delay between them) */
 /* For every folder the actual track can be stored in eeprom (audio book mode).
@@ -739,7 +740,7 @@ static void buttonHandler(void)
         }            
     } 
     
-    if (button_pressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
+    if (button_pressedFor(BUTTON_PLAY, BUTTON_SLEEPMODE_LONG_PRESS_TIME))
     {
         if (sleepTimerIsActive)
         {
