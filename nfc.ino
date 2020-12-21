@@ -44,7 +44,6 @@
         if (nfcTag.cookie != GOLDEN_COOKIE)
         {
             skipNextTrack = true;
-            sleepTimer_disable();
             FastLED.showColor(CRGB::White);
             
             /* configure new card */  

@@ -240,7 +240,6 @@ static void adminMenu_enter(void)
     uint8_t pinCodeIndex = 0;
     
     mp3_pause();
-    sleepTimer_disable();
     FastLED.showColor(CRGB::White);
     skipNextTrack = true;
     
