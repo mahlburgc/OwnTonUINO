@@ -146,7 +146,8 @@ static void adminMenu_setVolume(AdminMenuOptions_t menuOption)
     settings_writeToEeprom();
     mp3_setVolume(volume);
     voiceTrack++;
-    mp3_playMp3FolderTrack((voiceTrack)); /* MP3_VOL_..._OK */
+    mp3_playMp3FolderTrack(voiceTrack, DO_NOT_WAIT); /* MP3_VOL_..._OK */
+    skipMp3WithButtonPress();
 }
 
 
@@ -180,7 +181,8 @@ static void adminMenu_setSleepTimer(void)
     }
     
     settings_writeToEeprom();
-    mp3_playMp3FolderTrack((MP3_SLEEP_TIMER_OK));
+    mp3_playMp3FolderTrack(MP3_SLEEP_TIMER_OK, DO_NOT_WAIT);
+    skipMp3WithButtonPress();
 }
 
 /**
@@ -209,7 +211,8 @@ static void adminMenu_setAmbientLight(void)
     
     deviceSettings.ambientLedEnable = ambientLightEnable;
     settings_writeToEeprom();
-    mp3_playMp3FolderTrack(MP3_AMBIENT_LIGHT_OK);
+    mp3_playMp3FolderTrack(MP3_AMBIENT_LIGHT_OK, DO_NOT_WAIT);
+    skipMp3WithButtonPress();
 }
 
 /**
@@ -218,7 +221,8 @@ static void adminMenu_setAmbientLight(void)
 static void adminMenu_resetDeviceSettings(void)
 {
     settings_reset();
-    mp3_playMp3FolderTrack(MP3_SETTINGS_RESET_OK);
+    mp3_playMp3FolderTrack(MP3_SETTINGS_RESET_OK, DO_NOT_WAIT);
+    skipMp3WithButtonPress();
 }
 
 /**
@@ -236,7 +240,6 @@ static void adminMenu_enter(void)
     uint8_t pinCodeIndex = 0;
     
     mp3_pause();
-    sleepTimer_disable();
     FastLED.showColor(CRGB::White);
     skipNextTrack = true;
     
@@ -280,7 +283,11 @@ static void adminMenu_enter(void)
         }
     }
     
-    mp3_waitForTrackFinish(); /* wait for last button press sound is finished */
+    if (!keyCardDetected)
+    {
+        mp3_waitForTrackFinish(); /* wait till last button press sound is finished */
+    }
+    
     if (keyCardDetected || adminMenu_pinCompare(pinCodeEntered, PIN_CODE))
     {
         adminMenu_main();

@@ -39,13 +39,11 @@
         return;
     }
     
-    skipNextTrack = true;
-
     if (nfc_readTag(&nfcTag) == true) 
     {
         if (nfcTag.cookie != GOLDEN_COOKIE)
         {
-            sleepTimer_disable();
+            skipNextTrack = true;
             FastLED.showColor(CRGB::White);
             
             /* configure new card */  
@@ -70,9 +68,13 @@
             case MODE_SHUFFLE:
                 /* fall through */
             case MODE_AUDIO_BOOK:
-                mp3_playMp3FolderTrack(MP3_NEW_KNOWN_TAG);
-                folder = nfcTag.folderSettings;
-                playFolder();
+                if (!buttonsLocked)
+                {
+                    skipNextTrack = true;
+                    mp3_playMp3FolderTrack(MP3_NEW_KNOWN_TAG);
+                    folder = nfcTag.folderSettings;
+                    playFolder();
+                }
                 break;
                 
             case MODE_KEYCARD:
@@ -360,7 +362,10 @@ static void nfc_resetTag(void)
     NfcTagObject_t nfcTag;
     bool abort = false;
     
-    mp3_playMp3FolderTrack(MP3_INSERT_TAG, DO_NOT_WAIT);
+    /* IMPORTANT: If using DO_NOT_WAIT here, it's possible that noise sound starts if putting on an nfc tag for reconfiguration.
+     * To avoid this, the whole mp3 track has to be played here.
+     */
+    mp3_playMp3FolderTrack(MP3_INSERT_TAG);
     
     while(!mfrc522.PICC_IsNewCardPresent() && !abort)
     {
@@ -378,8 +383,12 @@ static void nfc_resetTag(void)
     {
         while(!mfrc522.PICC_ReadCardSerial())
         {
-            button_readAll();
             mp3_loop();
+            button_readAll();
+            if (button_pressedFor(BUTTON_PLAY, BUTTON_LONG_PRESS_TIME))
+            {
+                abort = true;
+            }
             DEBUG_PRINT_LN(F("cannot read card"));
             delay(100);
         }
@@ -393,6 +402,14 @@ static void nfc_resetTag(void)
     else
     {
         mp3_playMp3FolderTrack(MP3_ACTION_ABORT_OK);
+    }
+    
+    /* wait for all buttons are released before next action */
+    button_readAll();
+    while (!button_allReleased())
+    {
+        mp3_loop();
+        button_readAll();
     }
     
     mfrc522.PICC_HaltA();
