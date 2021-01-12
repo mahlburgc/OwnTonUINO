@@ -44,6 +44,7 @@
 /* hardware configuration */
 #define WS2812B_NR_OF_LEDS   1
 // #define FIVE_BUTTONS                       /* if not defined, three buttons are used
+#define LED_MODE_SMOOTH      1                /* if set to 0, colors change on every button press, otherwise color is changing smoothly while music is playing) */
 
 /* Increase RX GAIN if RFID Tags are not detected correctly. A higher gain results in better tag read but seems like i does not improve the ability to write to the tag.
  * 0x00 18 dB, minimum
@@ -825,6 +826,16 @@ static void ambientLed_handler(void)
         {
             if (deviceSettings.ambientLedEnable == true)
             {
+              
+                for (uint8_t buttonNr = 0, buttonNr < NR_OF_BUTTONS; buttonNr++)
+                {
+                    if (button_pressedFor(buttonNr)
+                    {
+                        colorCurrent = CHSV(random(0, 0xFF), 255, 255));
+                        break; /* TODO BAD STYLE */
+                    }
+                }
+#ifdef LED_MODE_SMOOTH  
                 if (mp3_isPlaying())
                 {
                     if (ambientLed_blend(CHSV(colorCurrent.hue, 255, 255), 15))
