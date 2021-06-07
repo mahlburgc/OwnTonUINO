@@ -1,4 +1,4 @@
-Eigene TonUINO Software florked from TonUINO V 2.1 by Thorsten Voß
+Eigene TonUINO software abgeleited von TonUINO V2.1 von Thorsten Voß
 
 https://github.com/xfjx/TonUINO
 
