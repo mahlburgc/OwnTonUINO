@@ -29,3 +29,5 @@ Temporary Items
 
 # TonUINO
 /tools/*.pyc
+/sd-card/mp3/*.mp3
+/sd-card/advert/*.mp3

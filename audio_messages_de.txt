@@ -1,42 +1,62 @@
-mp3/0300_new_tag.mp3|Oh! eine neue Karte!
-mp3/0301_select_folder.mp3|Verwende die Lautstärketasten um einen Modus für die Karte auszuwählen. Drücke die Pausetaste um fortzufahren.
-mp3/0302_select_mode.mp3|OK. Wähle nun mit den Lautstärketasten den Wiedergabeordner aus.
+Alle Soundfiles wurden mit https://notevibes.com/ erstellt (beste Stimme: Deutsch - Markus). Die mp3-files dürfen aus Lizenz-Gründen nicht frei zur Vefügung gestellt werden. 
+Man kann sich die Audio-Dateien aber kostenfrei selbst auf https://notevibes.com/ erstellen.
+(WIP: eine Alternative wie im Original-Projekt, die dass Verteilen der mp3-Dateien erlaubt, währe hier besser, da es sich ja auch um ein OpenSourceProjekt handelt)
+Die Sounddateien 0500, 0501 und 0502 enthalten keine Sprache. Hier kann man je nach Geschmack seine eigenen mp3-Sounds verwenden. (Auf https://freesound.org/ gibt es tolle, passende Sounds).
+
+
+mp3/0001.mp3|1
+...
+mp3/0100.mp3|100
+
+mp3/0300_insert_tag.mp3|Bitte lege nun die Karte auf!
+mp3/0301_new_tag.mp3|Oh! eine neue Karte!
+mp3/0302_select_mode.mp3|Verwende die Lautstärketasten um einen Modus für die Karte auszuwählen. Drücke die Pausetaste um fortzufahren.
+mp3/0303_select_folder.mp3|OK. Wähle nun mit den Lautstärketasten den Wiedergabeordner aus.
+mp3/0304_tag config_ok.mp3|OK. Ich habe die Karte konfiguriert.
+mp3/0305_tag config_error.mp3|Oh weh! Das hat leider nicht geklappt!
+
 mp3/0310_mode_album.mp3|Albummodus. Den kompletten Ordner wiedergeben
 mp3/0311_mode_party.mp3|Partymodus. Den Ordner zufällig wiedergeben.
 mp3/0312_mode_audio_book.mp3|Hörbuchmodus. Den Ordner wiedergeben und den Fortschritt speichern.
-mp3/0313_mode_keycard.mp3| Schlüsselkarte. Durch Auflegen der Karte können die Tasten gesperrt und das Adminmenü geöffnet werden.
-mp3/0320_tag config_ok.mp3|OK. Ich habe die Karte konfiguriert.
-mp3/0321_tag config_error.mp3|Oh weh! Das hat leider nicht geklappt!
-mp3/0800_insert_tag.mp3|Bitte lege nun die Karte auf!
-mp3/0801_action_abort_intro.mp3|Durch einen langen Druck auf die Pausetaste kannst du den Vorgang abbrechen.
-mp3/0802_action_aborted.mp3|OK. ich habe den Vorgang abgebrochen.
-mp3/0803_no.mp3|Nein.
-mp3/0804_yes.mp3|Ja.
-mp3/0805_ok.mp3|OK.
+mp3/0313_mode_keycard.mp3| Schlüsselkarte. Durch Auflegen der Karte können die Tasten gesperrt und entsperrt oder das Adminmenü geöffnet werden.
+
+mp3/0500_startup_sound_powerup.mp3  -> Startup Sound beim Einschalten des Tonuino
+mp3/0501_beep_from_freesound.mp3    -> Tastendruckgeräusch bei Pin-Eingabe
+mp3/0502_new_known_card_sound.mp3   -> Sound, wenn eine neue (bekannte) Figur/Karte aufgelegt wird
+
+mp3/0800_action_abort_intro.mp3|Durch einen langen Druck auf die Pausetaste kannst du den Vorgang abbrechen.
+mp3/0801_action_aborted.mp3|OK. ich habe den Vorgang abgebrochen.
+mp3/0802_no.mp3|Nein.
+mp3/0803_yes.mp3|Ja.
+mp3/0804_ok.mp3|OK.
+
 mp3/0900_admin_menu_pincode_keycard.mp3|Gib den Pincode mithilfe der Tasten ein oder lege die Schlüsselkarte auf, um das Adminmenü zu öffnen.
 mp3/0901_admin_menu.mp3|Willkommen im Adminmenü. Bitte wähle eine Funktion mit den Lautstärketasten aus und bestätige sie mit der Pausetaste. Durch einen langen Druck auf die Pausetaste kannst du das Adminmenü verlassen. 
 mp3/0902_admin_menu_exit_selected.mp3|OK. Das Adminmenü wird beendet.
-mp3/0910_card_reset.mp3|Eine Karte neu konfigurieren.
-mp3/0911_max_volume.mp3|Maximale Lautstärke festlegen.
-mp3/0912_min_volume.mp3|Minimale Lautstärke festlegen.
-mp3/0913_init_volume.mp3|Lautstärke beim Start festlegen.
-mp3/0914_sleep_timer.mp3|Den Einschlaftimer konfigurieren.
-mp3/0915_settings_reset.mp3|Alle Einstellungen zurücksetzen.
-mp3/0930_max_volume_selected.mp3|Maximale Lautstärke wählen und mit der Pausetaste bestätigen.
+
+mp3/0910_card_reset_intro.mp3|Eine Karte neu konfigurieren.
+
+mp3/0920_max_volume_intro.mp3|Maximale Lautstärke festlegen.
+mp3/0921_max_volume_selected.mp3|Maximale Lautstärke wählen und mit der Pausetaste bestätigen.
+mp3/0922_max_volume_ok.mp3|OK. Die maximale Lautstärke wurde neu konfiguriert.
+
+mp3/0930_min_volume_intro.mp3|Minimale Lautstärke festlegen.
 mp3/0931_min_volume_selected.mp3|Minimale Lautstärke wählen und mit der Pausetaste bestätigen.
-mp3/0932_init_volume_selected.mp3|Lautstärke beim Start wählen und mit der Pausetaste bestätigen.
-mp3/0933_sleep_timer_selected.mp3|Einschlaftimer in Minuten einstellen und mit der Pausetaste bestätigen.
-mp3/0934_settings_reset_selected.mp3|Möchtest du wirklich alle Einstellungen zurücksetzen? Die bereits konfigurierten Karten funktionieren weiterhin.
-mp3/0940_max_volume_ok.mp3|OK. Die maximale Lautstärke wurde neu konfiguriert.
-mp3/0941_min_volume_ok.mp3|OK. Die minimale Lautstärke wurde neu konfiguriert.
+mp3/0932_min_volume_ok.mp3|OK. Die minimale Lautstärke wurde neu konfiguriert.
+
+mp3/0940_init_volume_intro.mp3|Lautstärke beim Start festlegen.
+mp3/0941_init_volume_selected.mp3|Lautstärke beim Start wählen und mit der Pausetaste bestätigen.
 mp3/0942_init_volume_ok.mp3|OK. Die Lautstärke beim Start wurde neu konfiguriert.
-mp3/0943_sleep_timer_ok.mp3|OK. OK. Der Einschlaftimer wurde neu konfiguriert.
-mp3/0944_settings_reset_ok.mp3|OK. Alle Einstellungen wurden zurückgesetzt.
+
+mp3/0950_sleep_timer_intro.mp3|Den Einschlaftimer konfigurieren.
+mp3/0951_sleep_timer_selected.mp3|Einschlaftimer in Minuten einstellen und mit der Pausetaste bestätigen.
+mp3/0952_sleep_timer_ok.mp3|OK. OK. Der Einschlaftimer wurde neu konfiguriert.
+
+mp3/0960_settings_reset_intro.mp3|Alle Einstellungen zurücksetzen
+mp3/0961_settings_reset_selected.mp3|Möchtest du wirklich alle Einstellungen zurücksetzen? Die bereits konfigurierten Karten funktionieren weiterhin.
+mp3/0962_settings_reset_ok.mp3|OK. Alle Einstellungen wurden zurückgesetzt.
+
 mp3/0970_ambient_light_intro.mp3|Die Beleuchtung aktivieren oder deaktivieren.
 mp3/0971_ambient_light_selected.mp3|Soll die Beleuchtung im Wiedergabemodus aktiviert werden?
 mp3/0972_ambient_light_ok.mp3|OK. Die Beleuchtung wurde neu konfiguriert.
-
-advert/0300_buttons_unlocked.mp3|Die Tasten sind nun entsperrt.
-advert/0301_buttons_locked.mp3|Die Tasten sind nun gesperrt.
-
 

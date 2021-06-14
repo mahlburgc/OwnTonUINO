@@ -1,4 +1,4 @@
-Anleitung Party-Party-Musik-Box v1.0
+Anleitung OwnTonUINO v1.2
 ------------------------------------
 
 Tastenbelegung                   | 3 Tasten                          | 5 Tasten                                    |
