@@ -38,7 +38,7 @@
 //#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define FW_MAIN_VERSION  1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
-#define FW_SUB_VERSION   2          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
+#define FW_SUB_VERSION   3          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
 #define GOLDEN_COOKIE    0xBADEAFFE /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
 
 /* hardware configuration */

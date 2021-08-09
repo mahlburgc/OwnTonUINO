@@ -321,13 +321,27 @@ static NfcTagObject_t nfc_setupTag(void)
             button_readAll();
             mp3_loop();
             
-            if (button_wasReleased(BUTTON_UP) && (folderSelector < folderCount))
+            if (button_wasReleased(BUTTON_UP))
             {
-                folderSelector++;
+                if (folderSelector < folderCount)
+                {
+                    folderSelector++;
+                }
+                else
+                {
+                    folderSelector = 1;
+                }
             }
-            else if (button_wasReleased(BUTTON_DOWN) && (folderSelector > 1))
+            else if (button_wasReleased(BUTTON_DOWN))
             {
-                folderSelector--;
+                if (folderSelector > 1)
+                {
+                    folderSelector--;  
+                }
+                else
+                {
+                    folderSelector = folderCount;
+                }
             }
             
             if (button_wasReleased(BUTTON_UP) || button_wasReleased(BUTTON_DOWN))
