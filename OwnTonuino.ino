@@ -17,12 +17,7 @@
  *           Changed by Christian Mahlburg and licensed under GNU/GPL.
  *
  *  TODO:
- *  - make ambient light switchable on/off in admin menu
- *  - think about lock also new cards if keycard is used to lock buttons
- *  - print led configuration (number of leds, global max led brightness)
- *  - print button configuration
  *  - add power observation from led library
- *  - add sound when new known card is put on the box
  *
  ********************************************************************************/
 
@@ -43,7 +38,7 @@
 //#define DEBUG /* COMMENT WHEN NOT IN DEBUG MODE */
 
 #define FW_MAIN_VERSION  1          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
-#define FW_SUB_VERSION   2          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
+#define FW_SUB_VERSION   3          /* 0 ...16, if number is changed, device settings in eeprom will be reseted */
 #define GOLDEN_COOKIE    0xBADEAFFE /* this cookie is used to identify known cards, if changed, all configured cards are unconfigured */
 
 /* hardware configuration */
@@ -773,34 +768,23 @@ static void buttonHandler(void)
 
     if (button_wasReleased(BUTTON_NEXT))
     {
-        if (mp3_isPlaying())
-        {
-            nextTrack();
-        }
+        nextTrack();
+
     }
     
     if (button_wasReleased(BUTTON_PREV))
     {
-        if (mp3_isPlaying())
-        {
-            previousTrack();
-        }
+        previousTrack();
     }
 #else
     if (button_wasReleased(BUTTON_UP)) 
     {
-        if (mp3_isPlaying())
-        {
-            nextTrack();
-        }
+        nextTrack();
     }
 
     if (button_wasReleased(BUTTON_DOWN))
     {
-        if (mp3_isPlaying())
-        {
-            previousTrack();
-        }
+        previousTrack();
     }
 
     if (button_pressedFor(BUTTON_UP, BUTTON_VOLUME_LONG_PRESS_TIME))
